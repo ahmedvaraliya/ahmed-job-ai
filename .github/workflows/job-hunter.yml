@@ -34,6 +34,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           JOB_HUNTER_EMAIL: ${{ secrets.JOB_HUNTER_EMAIL }}
-          EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+          # EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
           JOB_BATCH_SIZE: ${{ secrets.JOB_BATCH_SIZE }}
         run: npx tsx src/index.ts

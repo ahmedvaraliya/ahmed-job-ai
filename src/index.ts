@@ -1,5 +1,4 @@
 import { supabaseAdmin } from './config/supabase'
-import { testGemini } from './ai/gemini'
 import { runJobPipeline } from './jobs/runJobPipeline'
 
 import {
@@ -14,7 +13,7 @@ async function main() {
   )
 
   // ---------------------------------------------------------
-  // SUPABASE
+  // SUPABASE CONNECTION CHECK
   // ---------------------------------------------------------
 
   const { error } = await supabaseAdmin
@@ -26,37 +25,15 @@ async function main() {
     console.error(
       '❌ Supabase connection failed:',
     )
+
     console.error(error.message)
+
     process.exit(1)
   }
 
   console.log(
     '✅ Supabase connection successful!',
   )
-
-  // ---------------------------------------------------------
-  // GEMINI
-  // ---------------------------------------------------------
-
-  try {
-    const result = await testGemini()
-
-    console.log(
-      '✅ Gemini connection successful!',
-    )
-
-    console.log(
-      `🤖 Gemini response: ${result}`,
-    )
-  } catch (error) {
-    console.error(
-      '❌ Gemini connection failed:',
-    )
-
-    console.error(error)
-
-    process.exit(1)
-  }
 
   // ---------------------------------------------------------
   // START RUN

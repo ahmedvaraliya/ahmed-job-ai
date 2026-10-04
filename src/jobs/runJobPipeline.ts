@@ -39,9 +39,17 @@ function isValidHttpUrl(value = '') {
   )
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) =>
+    setTimeout(resolve, ms),
+  )
+}
+
 export async function runJobPipeline() {
   console.log('\n🤖 AHMED JOB HUNTER')
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log(
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+  )
 
   // =========================================================
   // 1. FETCH JOBS
@@ -127,9 +135,8 @@ export async function runJobPipeline() {
     }
   }
 
-  const urlUniqueJobs = Array.from(
-    urlMap.values(),
-  )
+  const urlUniqueJobs =
+    Array.from(urlMap.values())
 
   console.log(
     `♻️ UNIQUE APPLY URLs: ${urlUniqueJobs.length}`,
@@ -165,9 +172,8 @@ export async function runJobPipeline() {
     }
   }
 
-  const uniqueJobs = Array.from(
-    identityMap.values(),
-  )
+  const uniqueJobs =
+    Array.from(identityMap.values())
 
   console.log(
     `🧠 UNIQUE COMPANY + TITLE JOBS: ${uniqueJobs.length}`,
@@ -175,16 +181,10 @@ export async function runJobPipeline() {
 
   // =========================================================
   // 5. REMOVE JOBS ALREADY IN SUPABASE
-  //
-  // IMPORTANT:
-  // This happens BEFORE Gemini.
-  //
-  // So previously saved jobs DO NOT consume
-  // Gemini requests.
   // =========================================================
 
   console.log(
-    '\n🔍 Checking existing Supabase jobs...',
+    '\n🔎 Checking existing Supabase jobs...',
   )
 
   const existingApplyUrls =
@@ -238,8 +238,8 @@ export async function runJobPipeline() {
     }
   }
 
-  const freshJobs = uniqueJobs.filter(
-    (job) => {
+  const freshJobs =
+    uniqueJobs.filter((job) => {
       const applyUrl =
         normalizeUrl(
           job.applyUrl || '',
@@ -258,7 +258,6 @@ export async function runJobPipeline() {
       const identity =
         `${company}::${title}`
 
-      // Same apply URL already exists
       if (
         applyUrl &&
         existingApplyUrls.has(
@@ -268,7 +267,6 @@ export async function runJobPipeline() {
         return false
       }
 
-      // Same company + title already exists
       if (
         existingCompanyTitles.has(
           identity,
@@ -278,8 +276,7 @@ export async function runJobPipeline() {
       }
 
       return true
-    },
-  )
+    })
 
   const alreadySaved =
     uniqueJobs.length -
@@ -298,7 +295,6 @@ export async function runJobPipeline() {
   // =========================================================
 
   const itRoleKeywords = [
-    // Software
     'software engineer',
     'software developer',
     'software development',
@@ -309,12 +305,9 @@ export async function runJobPipeline() {
     'developer',
     'engineer',
 
-    // Frontend / Web / UI / UX
     'frontend',
     'front-end',
     'front end',
-    'frontend developer',
-    'frontend engineer',
     'web developer',
     'web engineer',
     'web development',
@@ -326,7 +319,6 @@ export async function runJobPipeline() {
     'ui designer',
     'web designer',
 
-    // Backend / API
     'backend',
     'back-end',
     'back end',
@@ -335,12 +327,10 @@ export async function runJobPipeline() {
     'api developer',
     'api engineer',
 
-    // Full stack
     'full-stack',
     'full stack',
     'fullstack',
 
-    // JavaScript ecosystem
     'javascript',
     'typescript',
     'react',
@@ -355,7 +345,6 @@ export async function runJobPipeline() {
     'next.js',
     'nextjs',
 
-    // Programming languages
     'java developer',
     'java engineer',
     'python developer',
@@ -376,7 +365,6 @@ export async function runJobPipeline() {
     'kotlin developer',
     'swift developer',
 
-    // Mobile
     'mobile developer',
     'mobile engineer',
     'android developer',
@@ -388,7 +376,6 @@ export async function runJobPipeline() {
     'react native developer',
     'react native engineer',
 
-    // QA / Testing
     'qa engineer',
     'qa developer',
     'qa analyst',
@@ -400,7 +387,6 @@ export async function runJobPipeline() {
     'test automation',
     'sdet',
 
-    // DevOps / Cloud / Infrastructure
     'devops',
     'devops engineer',
     'cloud engineer',
@@ -416,7 +402,6 @@ export async function runJobPipeline() {
     'infrastructure engineer',
     'release engineer',
 
-    // Cybersecurity
     'cybersecurity',
     'cyber security',
     'security engineer',
@@ -430,7 +415,6 @@ export async function runJobPipeline() {
     'ethical hacker',
     'soc analyst',
 
-    // Data
     'data engineer',
     'data analyst',
     'data scientist',
@@ -444,7 +428,6 @@ export async function runJobPipeline() {
     'business intelligence',
     'analytics engineer',
 
-    // AI / ML
     'ai engineer',
     'ai developer',
     'artificial intelligence',
@@ -458,7 +441,6 @@ export async function runJobPipeline() {
     'generative ai',
     'genai',
 
-    // IT / Support / Networking
     'it engineer',
     'it specialist',
     'it administrator',
@@ -476,7 +458,6 @@ export async function runJobPipeline() {
     'help desk',
     'helpdesk',
 
-    // Architecture
     'software architect',
     'solutions architect',
     'solution architect',
@@ -485,7 +466,6 @@ export async function runJobPipeline() {
     'cloud architect',
     'enterprise architect',
 
-    // CMS / Ecommerce
     'wordpress',
     'wordpress developer',
     'shopify developer',
@@ -496,7 +476,6 @@ export async function runJobPipeline() {
     'cms developer',
     'ecommerce developer',
 
-    // Blockchain / Web3
     'blockchain developer',
     'blockchain engineer',
     'web3 developer',
@@ -504,13 +483,11 @@ export async function runJobPipeline() {
     'smart contract developer',
     'solidity developer',
 
-    // Game development
     'game developer',
     'game engineer',
     'unity developer',
     'unreal developer',
 
-    // Technical product / business
     'technical product manager',
     'technical program manager',
     'technical project manager',
@@ -519,14 +496,12 @@ export async function runJobPipeline() {
     'systems analyst',
     'product analyst',
 
-    // Management
     'engineering manager',
     'software engineering manager',
     'it manager',
     'technology manager',
     'technical manager',
 
-    // Technical consulting / writing
     'technical consultant',
     'technology consultant',
     'it consultant',
@@ -542,7 +517,6 @@ export async function runJobPipeline() {
   // =========================================================
 
   const blockedRoleKeywords = [
-    // Finance / Accounting
     'accountant',
     'accounting',
     'chartered accountant',
@@ -554,7 +528,6 @@ export async function runJobPipeline() {
     'financial controller',
     'investment banker',
 
-    // Sales
     'sales representative',
     'sales executive',
     'sales manager',
@@ -564,7 +537,6 @@ export async function runJobPipeline() {
     'business development representative',
     'business development executive',
 
-    // Marketing
     'marketing manager',
     'marketing specialist',
     'marketing executive',
@@ -574,7 +546,6 @@ export async function runJobPipeline() {
     'seo manager',
     'content marketing',
 
-    // HR
     'human resources',
     'hr manager',
     'hr specialist',
@@ -583,14 +554,12 @@ export async function runJobPipeline() {
     'recruitment',
     'talent acquisition',
 
-    // Legal
     'lawyer',
     'attorney',
     'legal counsel',
     'legal assistant',
     'paralegal',
 
-    // Medical
     'doctor',
     'physician',
     'nurse',
@@ -600,14 +569,12 @@ export async function runJobPipeline() {
     'medical assistant',
     'healthcare assistant',
 
-    // Education
     'teacher',
     'teaching',
     'professor',
     'lecturer',
     'school administrator',
 
-    // Hospitality
     'hotel manager',
     'hotel receptionist',
     'restaurant manager',
@@ -616,14 +583,12 @@ export async function runJobPipeline() {
     'waiter',
     'waitress',
 
-    // Admin
     'administrative assistant',
     'administration assistant',
     'office administrator',
     'office manager',
     'receptionist',
 
-    // Non-IT engineering
     'mechanical engineer',
     'mechanical engineering',
     'civil engineer',
@@ -638,8 +603,9 @@ export async function runJobPipeline() {
     'aerospace engineering',
     'automotive engineer',
     'automotive engineering',
+    'helicopter engineer',
+    'aviation engineer',
 
-    // Physical / manual
     'construction worker',
     'warehouse worker',
     'warehouse associate',
@@ -649,13 +615,11 @@ export async function runJobPipeline() {
     'maintenance technician',
     'maintenance engineer',
 
-    // Retail
     'retail associate',
     'retail manager',
     'store manager',
     'cashier',
 
-    // Generic customer service
     'customer service representative',
     'customer service agent',
     'customer care executive',
@@ -666,15 +630,13 @@ export async function runJobPipeline() {
   // 8. PREFERRED LOCATIONS
   // =========================================================
 
-  const preferredLocations = [
-    // USA
+  const preferredCountries = [
     'usa',
     'u.s.a',
     'u.s.',
     'united states',
     'united states of america',
 
-    // UK
     'uk',
     'u.k.',
     'united kingdom',
@@ -683,20 +645,17 @@ export async function runJobPipeline() {
     'wales',
     'northern ireland',
 
-    // Canada
     'canada',
-
-    // Australia
     'australia',
 
-    // UAE
     'uae',
     'u.a.e',
     'dubai',
     'abu dhabi',
     'sharjah',
+  ]
 
-    // Remote
+  const remoteKeywords = [
     'remote',
     'fully remote',
     'remote worldwide',
@@ -704,7 +663,40 @@ export async function runJobPipeline() {
     'worldwide',
     'work from anywhere',
     'work anywhere',
-    'anywhere',
+  ]
+
+  // Explicitly unwanted countries for on-site/hybrid roles.
+  // These are NOT blocked when the role is genuinely worldwide
+  // remote, because the actual remote eligibility may be global.
+  const blockedCountries = [
+    'germany',
+    'deutschland',
+    'france',
+    'switzerland',
+    'spain',
+    'italy',
+    'netherlands',
+    'belgium',
+    'austria',
+    'ireland',
+    'poland',
+    'portugal',
+    'sweden',
+    'norway',
+    'denmark',
+    'finland',
+    'czech republic',
+    'czechia',
+    'romania',
+    'hungary',
+    'croatia',
+    'greece',
+    'japan',
+    'china',
+    'singapore',
+    'india',
+    'brazil',
+    'mexico',
   ]
 
   // =========================================================
@@ -733,45 +725,29 @@ export async function runJobPipeline() {
 
     let score = 0
 
-    // -------------------------------------------------------
-    // Remote
-    // -------------------------------------------------------
-
-    if (
+    const isRemote =
       location.includes('remote') ||
+      location.includes('worldwide') ||
+      location.includes('anywhere') ||
       description.includes('fully remote') ||
       description.includes('remote worldwide') ||
       description.includes('work from anywhere') ||
       description.includes('work anywhere')
-    ) {
+
+    if (isRemote) {
       score += 40
     }
 
-    // -------------------------------------------------------
-    // Worldwide
-    // -------------------------------------------------------
-
     if (
       location.includes('worldwide') ||
-      location.includes(
-        'work from anywhere',
-      ) ||
-      location.includes(
-        'work anywhere',
-      ) ||
-      location.includes('anywhere')
+      location.includes('work from anywhere') ||
+      location.includes('work anywhere')
     ) {
       score += 35
     }
 
-    // -------------------------------------------------------
-    // Preferred countries
-    // -------------------------------------------------------
-
     if (
-      location.includes(
-        'united states',
-      ) ||
+      location.includes('united states') ||
       location.includes('usa') ||
       location.includes('u.s.')
     ) {
@@ -779,9 +755,7 @@ export async function runJobPipeline() {
     }
 
     if (
-      location.includes(
-        'united kingdom',
-      ) ||
+      location.includes('united kingdom') ||
       location.includes('uk') ||
       location.includes('u.k.')
     ) {
@@ -808,10 +782,6 @@ export async function runJobPipeline() {
       score += 22
     }
 
-    // -------------------------------------------------------
-    // Core software roles
-    // -------------------------------------------------------
-
     if (
       title.includes('software') ||
       title.includes('developer') ||
@@ -823,26 +793,16 @@ export async function runJobPipeline() {
       score += 20
     }
 
-    // -------------------------------------------------------
-    // AI / Data / Security
-    // -------------------------------------------------------
-
     if (
       title.includes('ai ') ||
       title.startsWith('ai') ||
-      title.includes(
-        'machine learning',
-      ) ||
+      title.includes('machine learning') ||
       title.includes('data') ||
       title.includes('cyber') ||
       title.includes('security')
     ) {
       score += 18
     }
-
-    // -------------------------------------------------------
-    // DevOps / Cloud
-    // -------------------------------------------------------
 
     if (
       title.includes('devops') ||
@@ -853,10 +813,6 @@ export async function runJobPipeline() {
       score += 18
     }
 
-    // -------------------------------------------------------
-    // QA / Testing
-    // -------------------------------------------------------
-
     if (
       title.includes('qa') ||
       title.includes('test') ||
@@ -865,22 +821,12 @@ export async function runJobPipeline() {
       score += 15
     }
 
-    // -------------------------------------------------------
-    // Remote description
-    // -------------------------------------------------------
-
     if (
       description.includes('remote') ||
-      description.includes(
-        'work from home',
-      )
+      description.includes('work from home')
     ) {
       score += 10
     }
-
-    // -------------------------------------------------------
-    // Freshness
-    // -------------------------------------------------------
 
     if (job.postedAt) {
       const posted =
@@ -958,29 +904,102 @@ export async function runJobPipeline() {
       }
 
       // -----------------------------------------------------
-      // Preferred location
+      // Build location information
       // -----------------------------------------------------
 
-      const locationText = `
-        ${job.location || ''}
-        ${job.workplace || ''}
-        ${job.country || ''}
-        ${job.description || ''}
-      `.toLowerCase()
+      const explicitLocation =
+        normalizeText(
+          `${job.location || ''} ${
+            job.country || ''
+          }`,
+        )
 
-      const hasPreferredLocation =
-        preferredLocations.some(
-          (location) =>
-            locationText.includes(
-              location,
+      const workplace =
+        normalizeText(
+          job.workplace || '',
+        )
+
+      const description =
+        normalizeText(
+          job.description || '',
+        )
+
+      const fullLocationText =
+        `${explicitLocation} ${workplace}`
+
+      // -----------------------------------------------------
+      // Remote detection
+      // -----------------------------------------------------
+
+      const isRemote =
+        remoteKeywords.some(
+          (keyword) =>
+            fullLocationText.includes(
+              keyword,
+            ),
+        ) ||
+        description.includes(
+          'remote worldwide',
+        ) ||
+        description.includes(
+          'work from anywhere',
+        ) ||
+        description.includes(
+          'work anywhere',
+        )
+
+      // -----------------------------------------------------
+      // Preferred country
+      // -----------------------------------------------------
+
+      const hasPreferredCountry =
+        preferredCountries.some(
+          (country) =>
+            fullLocationText.includes(
+              country,
             ),
         )
 
-      if (!hasPreferredLocation) {
+      // -----------------------------------------------------
+      // Obviously unwanted country
+      // -----------------------------------------------------
+
+      const hasBlockedCountry =
+        blockedCountries.some(
+          (country) =>
+            explicitLocation.includes(
+              country,
+            ),
+        )
+
+      // -----------------------------------------------------
+      // Location decision
+      //
+      // Accept:
+      // 1. Preferred country
+      // 2. Clearly remote/worldwide
+      //
+      // Reject:
+      // 1. Known unwanted country + non-remote
+      // 2. Unknown location without remote signal
+      // -----------------------------------------------------
+
+      if (hasPreferredCountry) {
+        return true
+      }
+
+      if (isRemote) {
+        // If the explicit location says a blocked
+        // country but the role is clearly remote,
+        // let Gemini verify the actual eligibility.
+        return true
+      }
+
+      if (hasBlockedCountry) {
         return false
       }
 
-      return true
+      return false
     })
     .map((job) => ({
       job,
@@ -1023,11 +1042,11 @@ export async function runJobPipeline() {
   // =========================================================
   // 12. GEMINI LIMIT
   //
-  // Free tier currently being used.
-  // Keep this at 15 per run.
+  // Keep below the observed free-tier RPM limit.
+  // 10 jobs + spacing between requests.
   // =========================================================
 
-  const MAX_AI_JOBS_PER_RUN = 15
+  const MAX_AI_JOBS_PER_RUN = 10
 
   const batch = candidates
     .slice(
@@ -1062,6 +1081,15 @@ export async function runJobPipeline() {
       console.log(
         `\n🧠 [${index + 1}/${batch.length}] ${job.title} — ${job.company}`,
       )
+
+      // -----------------------------------------------------
+      // Keep requests spaced out.
+      // This reduces free-tier RPM pressure.
+      // -----------------------------------------------------
+
+      if (index > 0) {
+        await sleep(6000)
+      }
 
       const analysis =
         await analyzeJob({
@@ -1106,7 +1134,7 @@ export async function runJobPipeline() {
       }
 
       // -----------------------------------------------------
-      // SAVE
+      // SAVE KEPT JOB
       // -----------------------------------------------------
 
       const result =
@@ -1135,14 +1163,14 @@ export async function runJobPipeline() {
         duplicates++
 
         console.log(
-          '   ♻️ DUPLICATE',
+          '   ♻️ DUPLICATE — NOT SAVED',
         )
 
         continue
       }
 
       // -----------------------------------------------------
-      // OTHER REJECTION
+      // OTHER SAVE REJECTION
       // -----------------------------------------------------
 
       rejected++
@@ -1205,7 +1233,7 @@ export async function runJobPipeline() {
   // =========================================================
 
   console.log(
-    '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   )
 
   console.log(
@@ -1213,7 +1241,7 @@ export async function runJobPipeline() {
   )
 
   console.log(
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   )
 
   console.log(
@@ -1221,51 +1249,51 @@ export async function runJobPipeline() {
   )
 
   console.log(
-    `Valid URLs:        ${summary.validApplyUrls}`,
+    `Valid URLs:       ${summary.validApplyUrls}`,
   )
 
   console.log(
-    `Unique URLs:       ${summary.uniqueApplyUrls}`,
+    `Unique URLs:      ${summary.uniqueApplyUrls}`,
   )
 
   console.log(
-    `Unique Jobs:       ${summary.unique}`,
+    `Unique Jobs:      ${summary.unique}`,
   )
 
   console.log(
-    `Already Saved:     ${summary.alreadySaved}`,
+    `Already Saved:    ${summary.alreadySaved}`,
   )
 
   console.log(
-    `Fresh Jobs:        ${summary.fresh}`,
+    `Fresh Jobs:       ${summary.fresh}`,
   )
 
   console.log(
-    `IT Jobs Found:     ${summary.likelyRelevant}`,
+    `IT Jobs Found:    ${summary.likelyRelevant}`,
   )
 
   console.log(
-    `Analyzed:          ${summary.analyzed}`,
+    `Analyzed:         ${summary.analyzed}`,
   )
 
   console.log(
-    `Saved:             ${summary.saved}`,
+    `Saved:            ${summary.saved}`,
   )
 
   console.log(
-    `Rejected:          ${summary.rejected}`,
+    `Rejected:         ${summary.rejected}`,
   )
 
   console.log(
-    `Duplicates:        ${summary.duplicates}`,
+    `Duplicates:       ${summary.duplicates}`,
   )
 
   console.log(
-    `Failed:            ${summary.failed}`,
+    `Failed:           ${summary.failed}`,
   )
 
   console.log(
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   )
 
   return summary
