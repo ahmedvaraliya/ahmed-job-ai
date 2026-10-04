@@ -1,0 +1,39 @@
+name: Ahmed Job Hunter
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: job-hunter
+  cancel-in-progress: false
+
+jobs:
+  run-job-hunter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Job Hunter
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          JOB_HUNTER_EMAIL: ${{ secrets.JOB_HUNTER_EMAIL }}
+          EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+          JOB_BATCH_SIZE: ${{ secrets.JOB_BATCH_SIZE }}
+        run: npx tsx src/index.ts
