@@ -808,7 +808,7 @@ export async function runJobPipeline() {
 
   for (const job of uniqueUrlJobs) {
     const key =
-      `${normalizeText(job.company)}::${normalizeText(job.title)}`
+  `${normalizeText(job.company)}::${normalizeText(job.title)}`
 
     if (!jobMap.has(key)) {
       jobMap.set(key, job)

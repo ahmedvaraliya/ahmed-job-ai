@@ -1,10 +1,51 @@
 import { supabaseAdmin } from '../config/supabase'
 import type { JobAnalysis } from '../ai/analyzeJob'
 
+// ============================================================
+// TEXT NORMALIZATION
+// ============================================================
+
+function normalizeText(value = '') {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// ============================================================
+// PERMANENT JOB IDENTITY
+//
+// Same company + same title = same job.
+//
+// Example:
+// DuckDuckGo + Software Engineer
+//
+// becomes:
+//
+// duckduckgo::software engineer
+// ============================================================
+
+function createJobKey(
+  company = '',
+  title = '',
+) {
+  return (
+    `${normalizeText(company)}::` +
+    `${normalizeText(title)}`
+  )
+}
+
+// ============================================================
+// SAVE VERIFIED JOB
+// ============================================================
+
 export async function saveAnalyzedJob(
   analysis: JobAnalysis,
 ) {
-  // AI rejected the job
+  // ==========================================================
+  // AI REJECTED
+  // ==========================================================
+
   if (analysis.decision !== 'keep') {
     return {
       saved: false,
@@ -12,7 +53,10 @@ export async function saveAnalyzedJob(
     }
   }
 
-  // Validate apply URL BEFORE database lookup
+  // ==========================================================
+  // VALIDATE APPLY URL
+  // ==========================================================
+
   if (
     !analysis.applyUrl ||
     analysis.applyUrl.includes('example.com')
@@ -23,57 +67,128 @@ export async function saveAnalyzedJob(
     }
   }
 
-  // Check for existing job
-  const { data: existing, error: lookupError } =
-    await supabaseAdmin
-      .from('jobs')
-      .select('id')
-      .eq('apply_url', analysis.applyUrl)
-      .maybeSingle()
+  // ==========================================================
+  // VALIDATE COMPANY + TITLE
+  // ==========================================================
 
-  if (lookupError) {
+  if (
+    !analysis.company?.trim() ||
+    !analysis.title?.trim()
+  ) {
+    return {
+      saved: false,
+      reason: 'Missing company or title',
+    }
+  }
+
+  // ==========================================================
+  // CREATE PERMANENT JOB KEY
+  // ==========================================================
+
+  const jobKey = createJobKey(
+    analysis.company,
+    analysis.title,
+  )
+
+  // ==========================================================
+  // CHECK JOB KEY
+  //
+  // This is the MAIN duplicate protection.
+  // ==========================================================
+
+  const {
+    data: existingByKey,
+    error: keyLookupError,
+  } = await supabaseAdmin
+    .from('jobs')
+    .select('id,company,title,apply_url')
+    .eq('job_key', jobKey)
+    .maybeSingle()
+
+  if (keyLookupError) {
     throw new Error(
-      `Failed to check duplicate job: ${lookupError.message}`,
+      `Failed to check job identity: ${keyLookupError.message}`,
     )
   }
 
-  if (existing) {
+  if (existingByKey) {
     return {
       saved: false,
       reason: 'Duplicate',
     }
   }
 
-  // Save the verified AI-approved job
-  const { error } = await supabaseAdmin
+  // ==========================================================
+  // SECONDARY CHECK: APPLY URL
+  //
+  // Keeps protection against same URL with different metadata.
+  // ==========================================================
+
+  const {
+    data: existingByUrl,
+    error: urlLookupError,
+  } = await supabaseAdmin
     .from('jobs')
-    .insert({
-      title: analysis.title,
-      company: analysis.company,
+    .select('id')
+    .eq('apply_url', analysis.applyUrl)
+    .maybeSingle()
 
-      location: analysis.location,
-      workplace: analysis.workplace,
-      country: analysis.country,
-      experience: analysis.experience,
-      category: analysis.category,
+  if (urlLookupError) {
+    throw new Error(
+      `Failed to check duplicate URL: ${urlLookupError.message}`,
+    )
+  }
 
-      salary: analysis.salary,
-      description: analysis.description,
+  if (existingByUrl) {
+    return {
+      saved: false,
+      reason: 'Duplicate',
+    }
+  }
 
-      source_name: analysis.sourceName,
-      source_url: analysis.sourceUrl,
-      apply_url: analysis.applyUrl,
+  // ==========================================================
+  // INSERT
+  // ==========================================================
 
-      posted_at: analysis.postedAt || null,
+  const { error } =
+    await supabaseAdmin
+      .from('jobs')
+      .insert({
+        job_key: jobKey,
 
-      ai_score: analysis.score,
-      ai_reason: analysis.reason,
+        title: analysis.title,
+        company: analysis.company,
 
-      is_active: true,
-    })
+        location: analysis.location,
+        workplace: analysis.workplace,
+        country: analysis.country,
+        experience: analysis.experience,
+        category: analysis.category,
+
+        salary: analysis.salary,
+        description: analysis.description,
+
+        source_name: analysis.sourceName,
+        source_url: analysis.sourceUrl,
+        apply_url: analysis.applyUrl,
+
+        posted_at:
+          analysis.postedAt || null,
+
+        ai_score: analysis.score,
+        ai_reason: analysis.reason,
+
+        is_active: true,
+      })
+
+  // ==========================================================
+  // DATABASE UNIQUE CONSTRAINT
+  //
+  // Even if two runs happen at exactly the same time,
+  // PostgreSQL will reject the second copy.
+  // ==========================================================
 
   if (error) {
-    // Unique apply_url race-condition protection
     if (error.code === '23505') {
       return {
         saved: false,
