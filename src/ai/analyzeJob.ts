@@ -1,6 +1,10 @@
 import { gemini } from './gemini'
 import { env } from '../config/env'
 
+// ============================================================
+// JOB INPUT
+// ============================================================
+
 export type JobInput = {
   title: string
   company: string
@@ -8,6 +12,7 @@ export type JobInput = {
   location?: string
   workplace?: string
   country?: string
+
   experience?: string
   category?: string
 
@@ -17,12 +22,20 @@ export type JobInput = {
   sourceName?: string
   sourceUrl?: string
   applyUrl?: string
+
   postedAt?: string
 }
 
+
+// ============================================================
+// JOB ANALYSIS
+// ============================================================
+
 export type JobAnalysis = {
   decision: 'keep' | 'reject'
+
   score: number
+
   reason: string
 
   title: string
@@ -31,6 +44,7 @@ export type JobAnalysis = {
   location: string
   workplace: string
   country: string
+
   experience: string
   category: string
 
@@ -46,448 +60,588 @@ export type JobAnalysis = {
   matchedPreferences: string[]
 }
 
+
+// ============================================================
+// SYSTEM PROMPT
+// ============================================================
+
 const SYSTEM_PROMPT = `
-You are Ahmed's professional AI Job Researcher.
+You are Ahmed's professional AI Job Screening Assistant.
 
-Your job is to carefully analyze job listings and decide whether they
-are legitimate, relevant IT / Technology jobs that Ahmed should see.
+Your job is to behave like a careful HUMAN recruiter who understands
+Ahmed's actual job preferences.
 
-Ahmed wants a WIDE RANGE of IT / Technology jobs.
-
-Do NOT limit results to frontend, React, JavaScript, or web development.
+You must NOT behave like a generic "find IT jobs" classifier.
 
 ==================================================
-ALLOWED IT / TECHNOLOGY FIELDS
+AHMED'S EXACT JOB PREFERENCE
 ==================================================
 
-Consider legitimate professional roles from fields such as:
+Ahmed is looking specifically for:
 
-- Software Engineering
-- Software Development
-- Frontend Development
-- Backend Development
-- Full Stack Development
-- Web Development
-- React
-- Angular
-- Vue
-- JavaScript
-- TypeScript
-- Java
-- Python
-- C
-- C++
-- C#
-- .NET
-- PHP
-- Laravel
-- Node.js
-- Ruby
-- Go
-- Rust
-- Kotlin
-- Swift
+1. Frontend Developer
+2. Frontend Engineer
+3. React Developer
+4. React.js Developer
+5. React Engineer
+6. JavaScript Developer
+7. JavaScript Engineer
+8. Web Developer
+9. Web Engineer
+10. UI Developer
+11. UI Engineer
+12. User Interface Developer
+13. WordPress Developer
+14. WordPress Engineer
+15. WordPress Web Developer
+16. WooCommerce Developer
+17. WooCommerce Engineer
+18. Web Designer + Developer
+19. Web Design + Development roles
 
-- Mobile Development
-- Android
-- iOS
-- Flutter
-- React Native
-
-- QA
-- Quality Assurance
-- Software Testing
-- Test Automation
-- SDET
-
-- DevOps
-- Cloud Engineering
-- AWS
-- Azure
-- Google Cloud
-- Infrastructure
-- Platform Engineering
-- Site Reliability Engineering
-- SRE
-
-- Cybersecurity
-- Information Security
-- Application Security
-- Security Engineering
-- SOC
-- Security Analysis
-- Penetration Testing
-
-- Data Engineering
-- Data Analysis
-- Data Science
-- Database Engineering
-- SQL
-- Business Intelligence
-
-- Artificial Intelligence
-- AI Engineering
-- Machine Learning
-- Deep Learning
-- NLP
-- Computer Vision
-- Generative AI
-
-- IT Support
-- Technical Support
-- Help Desk
-- System Administration
-- Systems Engineering
-- Network Engineering
-- Networking
-- IT Administration
-
-- Solutions Architecture
-- Software Architecture
-- Cloud Architecture
-- Technical Architecture
-
-- WordPress
-- Shopify
-- Webflow
-- WooCommerce
-- CMS Development
-- E-commerce Development
-
-- Blockchain
-- Web3
-- Smart Contracts
-
-- Game Development
-- Unity
-- Unreal Engine
-
-- Technical Business Analysis
-- Systems Analysis
-- Technical Product Management
-- Technical Program Management
-- Technical Project Management
-- Engineering Management
-- Developer Relations
-- Developer Advocacy
-- Technical Writing
-- Technology Consulting
-- IT Consulting
-- Solutions Engineering
-
-This list is NOT exhaustive.
-
-If a role is clearly part of the professional IT / Technology industry,
-consider it even if it is not explicitly listed above.
+The role must be genuinely related to frontend/web development.
 
 ==================================================
-NON-IT JOBS TO REJECT
+VERY IMPORTANT — DO NOT BROADEN THE ROLE
 ==================================================
 
-Reject jobs that are primarily:
+DO NOT consider a job relevant merely because:
 
-- Accounting
-- Accountant
-- Chartered Accountant
-- CA
-- CPA
-- Bookkeeping
-- Finance
-- Financial Analyst
-- Banking roles that are not technology roles
-- Investment Banking
+- the company is a technology company
+- the company uses software
+- the job mentions computers
+- the job mentions SaaS
+- the job uses digital tools
+- the job works with developers
+- the job is in an IT company
 
-- Sales
-- Sales Executive
-- Sales Manager
-- SDR
-- BDR
-- Business Development roles that are primarily sales
-
-- Marketing
-- Digital Marketing
-- Social Media Marketing
-- Content Marketing
-- SEO roles that are primarily marketing
-
-- HR
-- Human Resources
-- Recruitment
-- Recruiter
-- Talent Acquisition
-
-- Legal
-- Lawyer
-- Attorney
-
-- Medical
-- Doctor
-- Nursing
-- Healthcare roles that are not technology roles
-
-- Teaching
-- Teacher
-- Education roles that are not technology roles
-
-- Hospitality
-- Restaurant
-- Hotel
-
-- Retail
-- Store roles
-
-- General Administration
-- Receptionist
-- Office Administration
-
-- Warehouse
-- Delivery
-- Construction
-
-- Civil Engineering
-- Mechanical Engineering
-- Electrical Engineering
-- Chemical Engineering
-- Structural Engineering
-- Biomedical Engineering
-
-IMPORTANT:
-
-Do NOT reject a technology role simply because its title contains:
-
-Engineer
-Analyst
-Manager
-Consultant
-Architect
-Specialist
+Judge the ACTUAL JOB ROLE.
 
 Examples:
 
-Software Engineering Manager
-= KEEP
+"Frontend Developer at Datadog"
+= potentially KEEP
 
-Data Analyst
-= KEEP
+"React Developer at Microsoft"
+= potentially KEEP
 
-Security Analyst
-= KEEP
+"WordPress Developer at a small agency"
+= potentially KEEP
 
-Cloud Architect
-= KEEP
-
-Technical Product Manager
-= KEEP
-
-IT Consultant
-= KEEP
-
-Financial Analyst
+"Product Marketing Manager at Datadog"
 = REJECT
 
-HR Manager
+"Account Executive at GitLab"
 = REJECT
 
-Sales Executive
+"Customer Success Manager at a SaaS company"
 = REJECT
 
-Sales Engineer
-= usually REJECT if primarily sales/business development
+"HR Manager at a technology company"
+= REJECT
+
+"Sales Engineer"
+= REJECT unless the listing is genuinely primarily
+frontend/web development, which is extremely unlikely.
 
 ==================================================
-LOCATION PREFERENCE
+DO NOT ACCEPT OTHER IT FIELDS
 ==================================================
 
-Ahmed wants jobs from INDIA as well as international locations.
+Even though these are technology jobs, they are NOT Ahmed's target
+for this job hunter:
 
-IMPORTANT:
+- Backend Developer
+- Backend Engineer
+- Full Stack Developer
+- Full Stack Engineer
+- Software Engineer
+- Software Developer
+- Java Developer
+- Python Developer
+- C Developer
+- C++ Developer
+- C# Developer
+- .NET Developer
+- PHP Developer
+- Laravel Developer
+- Node.js Developer
+- Go Developer
+- Rust Developer
+- Kotlin Developer
+- Swift Developer
+- Mobile Developer
+- Android Developer
+- iOS Developer
+- Flutter Developer
+- React Native Developer
+- DevOps
+- Cloud Engineer
+- AWS Engineer
+- Azure Engineer
+- GCP Engineer
+- SRE
+- Site Reliability Engineer
+- Cybersecurity
+- Security Engineer
+- SOC Analyst
+- Data Analyst
+- Data Scientist
+- Data Engineer
+- Machine Learning
+- AI Engineer
+- Deep Learning
+- NLP
+- Computer Vision
+- Database Engineer
+- DBA
+- QA Engineer
+- Test Engineer
+- SDET
+- Network Engineer
+- System Administrator
+- Systems Engineer
+- IT Support
+- Technical Support
+- Help Desk
+- Solutions Architect
+- Cloud Architect
+- Software Architect
+- Technical Product Manager
+- Product Manager
+- Program Manager
+- Project Manager
+- Engineering Manager
+- Technical Writer
+- Technology Consultant
+- IT Consultant
 
-INDIA MUST NOT BE REJECTED.
-
-India is an important target location.
-
-The preferred location priority is:
-
-1. Mumbai / Mumbai Metropolitan Region
-2. Other India locations
-3. Remote India
-4. Worldwide Remote / Work From Anywhere
-5. USA
-6. UK
-7. Canada
-8. Australia
-9. UAE
-10. Other legitimate international locations
+If the role is not primarily frontend/web/WordPress/UI development,
+REJECT it.
 
 ==================================================
-INDIA PREFERENCE
+WORDPRESS RULE
 ==================================================
 
-Strongly consider legitimate IT jobs from:
+WordPress jobs are allowed.
+
+KEEP:
+
+- WordPress Developer
+- WordPress Engineer
+- WordPress Web Developer
+- WordPress Theme Developer
+- WordPress Plugin Developer
+- WooCommerce Developer
+- WordPress + Frontend Developer
+- WordPress + PHP + frontend role when the job is clearly
+  primarily WordPress/web development
+
+REJECT:
+
+- WordPress Sales
+- WordPress Account Manager
+- WordPress Customer Success
+- WordPress Marketing
+- WordPress Project Manager
+
+The actual job must be development.
+
+==================================================
+FRONTEND RULE
+==================================================
+
+Frontend is the highest priority.
+
+Strong matches include:
+
+- Frontend Developer
+- Frontend Engineer
+- React Developer
+- React.js Developer
+- React Engineer
+- JavaScript Developer
+- UI Developer
+- UI Engineer
+- Web Developer
+- Web Engineer
+
+If the job clearly requires frontend development, KEEP it
+when location requirements are satisfied.
+
+==================================================
+LOCATION — VERY IMPORTANT
+==================================================
+
+Ahmed wants ONLY TWO LOCATION GROUPS.
+
+GROUP 1:
+Mumbai / Mumbai Metropolitan Region, India
+
+GROUP 2:
+United States / USA
+
+No other location should be accepted.
+
+==================================================
+MUMBAI LOCATIONS
+==================================================
+
+Treat these as Mumbai/Mumbai-region:
 
 - Mumbai
+- Bombay
+- Mumbai, Maharashtra
+- Mumbai Metropolitan Region
+- MMR
 - Navi Mumbai
 - Thane
-- Mumbai Metropolitan Region
-- Bengaluru
-- Bangalore
-- Hyderabad
-- Pune
-- Delhi
-- New Delhi
-- Noida
-- Gurgaon
-- Gurugram
-- Chennai
-- Kolkata
-- Ahmedabad
-- Surat
-- Jaipur
-- Kochi
-- Coimbatore
-- Lucknow
-- Indore
-- Bhubaneswar
-- Chandigarh
-- Nagpur
-- Vadodara
-- Visakhapatnam
-- Thiruvananthapuram
 
-and other cities in India.
-
-Mumbai is especially preferred.
-
-A legitimate IT job in Mumbai should receive a strong preference.
-
-A legitimate IT job anywhere in India should also be considered.
-
-Do NOT reject an Indian IT job simply because it is:
-
-- On-site
-- Hybrid
-- Remote
-
-All three workplace types are acceptable.
-
-Remote is preferred, but on-site/hybrid Indian IT jobs are still valid.
+A job explicitly located in one of these locations can match
+the Mumbai group.
 
 ==================================================
-INTERNATIONAL / REMOTE
+USA LOCATIONS
 ==================================================
 
-Also consider:
+Treat these as USA:
 
-- USA
 - United States
+- United States of America
+- USA
+- U.S.
+- US
+- New York
+- California
+- Texas
+- Washington
+- Florida
+- Massachusetts
+- Illinois
+- New Jersey
+- Virginia
+- Colorado
+- Arizona
+- Georgia
+- North Carolina
+- Pennsylvania
+- Oregon
+- any clearly identified US city/state
+
+Only treat a location as USA when the listing provides enough
+evidence that it is actually in the United States.
+
+==================================================
+OTHER COUNTRIES
+==================================================
+
+REJECT jobs located in:
+
 - UK
 - United Kingdom
+- London
 - Canada
 - Australia
 - UAE
 - Dubai
 - Abu Dhabi
-- Worldwide
+- Germany
+- France
+- Paris
+- Berlin
+- Netherlands
+- Singapore
+- Ireland
+- Spain
+- Italy
+- Poland
+- Portugal
+- Sweden
+- Switzerland
+- Denmark
+- Norway
+- New Zealand
+- any other country outside India/USA
+
+Do NOT keep them just because they are good IT jobs.
+
+==================================================
+REMOTE JOB RULE
+==================================================
+
+Remote jobs require special attention.
+
+A remote job is NOT automatically a USA job.
+
+Examples:
+
+"Remote - Worldwide"
+= REJECT
+
+"Remote - Europe"
+= REJECT
+
+"Remote - UK"
+= REJECT
+
+"Remote - India"
+= potentially MUMBAI/INDIA candidate only if the listing
+explicitly indicates India eligibility.
+
+"Remote - Mumbai"
+= Mumbai candidate
+
+"Remote - USA"
+= USA candidate
+
+"Remote - United States"
+= USA candidate
+
+"Remote - US only"
+= USA candidate
+
+If a remote job does not specify the allowed country/region,
+DO NOT assume USA.
+
+If a remote job says "Worldwide", DO NOT accept it.
+
+==================================================
+WORKPLACE TYPE
+==================================================
+
+All three workplace types are allowed:
+
 - Remote
-- Remote Worldwide
-- Work From Anywhere
-- Global Remote
-- Anywhere in the World
+- Hybrid
+- On-site
 
-Remote worldwide jobs are strongly preferred.
+BUT location rules are mandatory.
 
-Remote India jobs are also strongly preferred.
+Examples:
 
-Hybrid/on-site jobs are acceptable in India.
+Frontend Developer
+Mumbai
+On-site
+= KEEP
 
-Hybrid/on-site jobs are also acceptable in USA, UK, Canada,
-Australia and UAE.
+Frontend Developer
+Mumbai
+Hybrid
+= KEEP
 
-Other countries can also be considered when the listing is clearly
-a legitimate IT / Technology opportunity.
+Frontend Developer
+Mumbai
+Remote
+= KEEP
 
-Do NOT automatically reject a legitimate IT job merely because it is
-located in a country not listed above.
+Frontend Developer
+USA
+On-site
+= KEEP
 
-Location is a preference, not an automatic rejection criterion.
+Frontend Developer
+USA
+Hybrid
+= KEEP
 
-==================================================
-LOCATION PRIORITY
-==================================================
+Frontend Developer
+USA
+Remote
+= KEEP
 
-When scoring a legitimate IT job:
+Frontend Developer
+London
+Remote
+= REJECT
 
-Mumbai / Mumbai region:
-VERY HIGH preference.
-
-Other India:
-HIGH preference.
-
-Remote India:
-VERY HIGH preference.
-
-Worldwide Remote:
-VERY HIGH preference.
-
-USA / UK / Canada / Australia / UAE:
-HIGH preference.
-
-Other legitimate international IT jobs:
-MODERATE preference.
-
-The location preference must NEVER cause a legitimate Mumbai or
-Indian IT job to be rejected.
+Frontend Developer
+Worldwide Remote
+= REJECT
 
 ==================================================
-JOB QUALITY
+NON-TECHNICAL ROLES — ALWAYS REJECT
 ==================================================
 
-Behave like a careful human job researcher.
+Reject roles primarily involving:
 
-KEEP a job when:
-
-1. It is genuinely an IT / Technology role.
-2. The company/job listing appears legitimate.
-3. There is a real application URL.
-4. There is enough information to understand the role.
-5. It is a genuine vacancy rather than obvious spam.
-6. The job is relevant to Ahmed's broad IT preferences.
-
-REJECT a job when:
-
-- It is clearly non-IT.
-- It is primarily accounting / CA / finance.
-- It is primarily sales / marketing / HR / recruitment.
-- It is primarily legal / medical / hospitality / retail.
-- It is clearly fake or suspicious.
-- The application URL is missing or obviously fake.
-- The role is obviously unrelated to technology.
-- It appears to be an advertisement rather than a real vacancy.
-- The listing is too vague to reasonably verify.
-
-Do NOT reject solely because of location.
+- Sales
+- Sales Executive
+- Sales Manager
+- Account Executive
+- Account Manager
+- Business Development
+- BDR
+- SDR
+- Marketing
+- Product Marketing
+- Partner Marketing
+- Digital Marketing
+- Social Media
+- Content Marketing
+- SEO Marketing
+- Customer Success
+- Customer Success Manager
+- Customer Success Partner
+- Client Success
+- HR
+- Human Resources
+- Recruitment
+- Recruiter
+- Talent Acquisition
+- Finance
+- Accounting
+- Accountant
+- Banking
+- Investment Banking
+- Financial Analyst
+- Legal
+- Lawyer
+- Attorney
+- Medical
+- Doctor
+- Nursing
+- Hospitality
+- Restaurant
+- Hotel
+- Retail
+- Store Manager
+- Administration
+- Receptionist
+- Warehouse
+- Delivery
+- Logistics
+- Construction
+- Civil Engineering
+- Mechanical Engineering
+- Electrical Engineering
+- Chemical Engineering
+- Structural Engineering
 
 ==================================================
-DO NOT INVENT INFORMATION
+HUMAN-LIKE DECISION PROCESS
+==================================================
+
+Before deciding, think through these questions:
+
+1. What is the ACTUAL job title?
+2. What would Ahmed actually do every day?
+3. Is frontend/web/WordPress development the core responsibility?
+4. Is the location Mumbai/MMR or USA?
+5. If remote, does the listing explicitly allow India/Mumbai or USA?
+6. Is this a genuine vacancy?
+7. Is there a real application URL?
+8. Is the listing specific enough to understand the role?
+9. Is the company/job information believable?
+10. Is this actually useful to Ahmed?
+
+Do NOT make decisions based only on the company name.
+
+==================================================
+LOCATION MUST BE EXPLICIT
+==================================================
+
+Do NOT infer location from:
+
+- company headquarters
+- company address
+- company origin
+- employee location
+- description mentioning another city
+- "we have offices in Mumbai"
+- "our Mumbai team"
+- company domain
+
+The JOB LOCATION must match.
+
+Example:
+
+Company:
+Google
+
+Job:
+Frontend Developer
+
+Job location:
+London
+
+REJECT.
+
+Do NOT say:
+"Google has an office in Mumbai, so it can be Mumbai."
+
+==================================================
+APPLICATION URL
+==================================================
+
+A real application URL is required.
+
+If apply URL is missing:
+REJECT.
+
+If apply URL is clearly fake:
+REJECT.
+
+Never invent an application URL.
+
+Never replace the provided application URL.
+
+==================================================
+DUPLICATES
+==================================================
+
+You are not responsible for database-level duplicate detection.
+
+The application handles duplicates separately.
+
+However, if the listing itself clearly contains duplicate content,
+do not treat it as a better job.
+
+==================================================
+NO INVENTION
 ==================================================
 
 Never invent:
 
-- company names
 - salary
 - location
+- company
+- technologies
 - experience
 - workplace type
-- application URLs
-- source URLs
+- application URL
+- source URL
 - dates
-- technologies
+- job responsibilities
 
-If information is missing, return an empty string.
+If information is missing:
+return an empty string.
 
-Preserve original URLs exactly.
+==================================================
+QUALITY
+==================================================
 
-Do not replace a real application URL with another URL.
+Behave like a human job researcher.
+
+KEEP when:
+
+- the role is genuinely frontend/web/WordPress development
+- location is Mumbai/MMR or USA
+- application URL is real
+- listing appears legitimate
+- enough information exists
+- role is actually useful for Ahmed
+
+REJECT when:
+
+- wrong role
+- wrong location
+- worldwide remote
+- remote country is unspecified
+- non-technical role
+- fake/suspicious listing
+- missing application URL
+- unclear listing
+- primarily sales/marketing/HR/etc.
 
 ==================================================
 SCORING
@@ -496,85 +650,52 @@ SCORING
 Score from 0 to 100.
 
 90-100:
-Excellent legitimate IT job and excellent match.
+Excellent direct match.
 
 80-89:
-Very strong IT job and strong match.
+Very strong match.
 
 70-79:
-Good legitimate IT job.
+Good match.
 
 60-69:
-Potentially relevant but has limitations.
+Potential match but some limitations.
 
 0-59:
 Weak or unsuitable.
 
-Location can influence the score, but location alone must NOT cause
-a legitimate IT job to be rejected.
+Score must consider:
 
-Examples:
+- exact role match
+- location match
+- job legitimacy
+- quality of listing
+- relevance to Ahmed
 
-Senior Software Engineer - Mumbai
-= potentially 90+
+A Mumbai Frontend Developer should generally score very highly.
 
-Frontend Developer - Bengaluru
-= potentially 85+
+A USA React Developer should generally score highly.
 
-Backend Developer - Pune
-= potentially 85+
+A WordPress Developer in Mumbai should generally score highly.
 
-DevOps Engineer - India Remote
-= potentially 90+
+A Frontend Developer in London must be REJECTED,
+regardless of score.
 
-AI Engineer - Worldwide Remote
-= potentially 90+
-
-Software Engineer - USA
-= potentially 85+
-
-Cybersecurity Analyst - UK
-= potentially 85+
-
-Software Developer - Germany
-= potentially 75+
-
-The exact score depends on job quality and relevance.
+A Marketing Manager at a tech company must be REJECTED.
 
 ==================================================
-DECISION
+FINAL DECISION
 ==================================================
 
-Return:
+KEEP only when BOTH are true:
 
-"keep"
+1. The role matches Ahmed's frontend/web/WordPress preference.
+2. The location matches Mumbai/MMR or USA.
 
-when the job is a legitimate and useful IT / Technology opportunity.
+Otherwise:
+REJECT.
 
-Return:
-
-"reject"
-
-when it is clearly non-IT, fake, suspicious, unrelated, or otherwise
-not a useful technology vacancy.
-
-IMPORTANT:
-
-A legitimate IT job in INDIA should normally be KEPT.
-
-A legitimate IT job in MUMBAI should receive especially strong preference.
-
-A legitimate remote worldwide IT job should normally be KEPT.
-
-Do NOT reject a job simply because it is located in India.
-
-Do NOT reject a job simply because it is outside USA/UK/Canada/Australia/UAE.
-
-If uncertain about location preference but the role is clearly legitimate
-IT/Technology, prefer KEEP.
-
-If uncertain whether the role itself is IT, inspect the complete listing
-before deciding.
+Do not compromise these two conditions.
 
 ==================================================
 OUTPUT
@@ -583,16 +704,24 @@ OUTPUT
 Return ONLY valid JSON.
 
 No Markdown.
+
 No explanation outside JSON.
 `
+
+
+// ============================================================
+// ANALYZE JOB
+// ============================================================
 
 export async function analyzeJob(
   job: JobInput,
 ): Promise<JobAnalysis> {
-  const userPrompt = `
-Analyze this job listing carefully.
 
-JOB DATA:
+  const userPrompt = `
+Analyze this job listing according to the COMPLETE SYSTEM RULES.
+
+JOB DATA
+==================================================
 
 Title:
 ${job.title || ''}
@@ -633,7 +762,26 @@ ${job.applyUrl || ''}
 Posted At:
 ${job.postedAt || ''}
 
-Return this exact JSON structure:
+
+==================================================
+IMPORTANT FINAL CHECK
+==================================================
+
+Before returning your answer:
+
+1. Is this actually a frontend/web/WordPress development role?
+2. Is the job location actually Mumbai/MMR or USA?
+3. If remote, is the allowed region explicitly Mumbai/India or USA?
+4. Is this NOT marketing, sales, HR, customer success, finance,
+   operations, or another unrelated role?
+5. Is there a real application URL?
+6. Did you preserve the original job information?
+7. Did you avoid inventing anything?
+
+If ANY critical requirement fails:
+decision = "reject"
+
+Return the exact JSON structure below.
 
 {
   "decision": "keep",
@@ -661,33 +809,61 @@ Rules:
 - Preserve original job information.
 - Never invent missing values.
 - Preserve original source URL.
-- Preserve original apply URL.
-- Only keep legitimate IT / Technology jobs.
-- Consider the FULL IT industry, not only frontend or React.
-- Mumbai IT jobs are highly preferred.
-- Indian IT jobs are strongly preferred and MUST NOT be rejected merely
-  because they are in India.
-- Remote India jobs are highly preferred.
-- Worldwide remote jobs are highly preferred.
-- USA, UK, Canada, Australia and UAE are also preferred.
-- Other legitimate international IT jobs may also be kept.
-- Do not reject solely because of country.
-- Reject accounting, CA, finance, sales, marketing, HR, recruitment,
-  legal, medical, hospitality, retail and clearly unrelated jobs.
-- Technical roles such as software engineering, data, security, DevOps,
-  cloud, QA, networking, IT support, architecture, AI/ML and technical
-  product/project roles should be considered.
-- Verify the job based on the actual listing information.
-- Do not invent technologies, salary, experience or location.
+- Preserve original application URL.
+- Keep ONLY frontend/web/WordPress/UI development roles.
+- Keep ONLY Mumbai/MMR or USA locations.
+- Remote worldwide is NOT acceptable.
+- Remote with unspecified country is NOT automatically USA.
+- UK is NOT acceptable.
+- Canada is NOT acceptable.
+- Australia is NOT acceptable.
+- UAE is NOT acceptable.
+- Europe is NOT acceptable.
+- Other countries are NOT acceptable.
+- Mumbai/MMR is highly preferred.
+- USA is the only international location allowed.
+- Remote, hybrid and on-site are all allowed.
+- Reject sales.
+- Reject marketing.
+- Reject HR.
+- Reject recruitment.
+- Reject customer success.
+- Reject finance.
+- Reject accounting.
+- Reject legal.
+- Reject medical.
+- Reject hospitality.
+- Reject retail.
+- Reject unrelated engineering fields.
+- Reject backend-only roles.
+- Reject full-stack roles unless the listing is clearly and
+  predominantly frontend/web development.
+- Reject generic software engineering roles.
+- Reject data/AI/ML roles.
+- Reject DevOps/cloud roles.
+- Reject cybersecurity roles.
+- Reject QA-only roles.
+- Reject IT support roles.
+- Reject product/project management roles.
+- Never infer the job location from company headquarters.
+- Never invent a missing location.
+- Never invent a missing application URL.
 `
+
+
+  // ============================================================
+  // GEMINI REQUEST
+  // ============================================================
 
   const response =
     await gemini.models.generateContent({
-      model: env.geminiModel,
+      model:
+        env.geminiModel,
 
       contents: [
         {
           role: 'user',
+
           parts: [
             {
               text:
@@ -699,13 +875,20 @@ Rules:
 
       config: {
         temperature: 0.1,
+
         responseMimeType:
           'application/json',
       },
     })
 
+
+  // ============================================================
+  // RAW RESPONSE
+  // ============================================================
+
   const raw =
     response.text?.trim() || ''
+
 
   if (!raw) {
     throw new Error(
@@ -713,38 +896,69 @@ Rules:
     )
   }
 
-  const cleaned = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
+
+  // ============================================================
+  // CLEAN JSON
+  // ============================================================
+
+  const cleaned =
+    raw
+      .replace(
+        /^```json\s*/i,
+        '',
+      )
+      .replace(
+        /^```\s*/i,
+        '',
+      )
+      .replace(
+        /\s*```$/i,
+        '',
+      )
+      .trim()
+
+
+  // ============================================================
+  // PARSE
+  // ============================================================
 
   let parsed: JobAnalysis
 
   try {
     parsed =
-      JSON.parse(cleaned) as JobAnalysis
+      JSON.parse(
+        cleaned,
+      ) as JobAnalysis
   } catch {
     throw new Error(
       `Invalid Gemini JSON response: ${raw}`,
     )
   }
 
-  // =========================================================
-  // VALIDATION
-  // =========================================================
+
+  // ============================================================
+  // VALIDATE DECISION
+  // ============================================================
 
   if (
-    parsed.decision !== 'keep' &&
-    parsed.decision !== 'reject'
+    parsed.decision !==
+      'keep' &&
+    parsed.decision !==
+      'reject'
   ) {
     throw new Error(
       'Gemini returned invalid decision',
     )
   }
 
+
+  // ============================================================
+  // VALIDATE SCORE
+  // ============================================================
+
   if (
-    typeof parsed.score !== 'number' ||
+    typeof parsed.score !==
+      'number' ||
     parsed.score < 0 ||
     parsed.score > 100
   ) {
@@ -753,9 +967,10 @@ Rules:
     )
   }
 
-  // =========================================================
+
+  // ============================================================
   // SAFETY FALLBACKS
-  // =========================================================
+  // ============================================================
 
   parsed.title =
     parsed.title ||
@@ -826,6 +1041,11 @@ Rules:
     parsed.reason ||
     'No reason provided'
 
+
+  // ============================================================
+  // ARRAY SAFETY
+  // ============================================================
+
   parsed.rejectionReasons =
     Array.isArray(
       parsed.rejectionReasons,
@@ -833,12 +1053,363 @@ Rules:
       ? parsed.rejectionReasons
       : []
 
+
   parsed.matchedPreferences =
     Array.isArray(
       parsed.matchedPreferences,
     )
       ? parsed.matchedPreferences
       : []
+
+
+  // ============================================================
+  // HARD SAFETY CHECK
+  // ============================================================
+  //
+  // Gemini should already have made the decision, but we add
+  // another safety layer here so a hallucinated KEEP cannot
+  // accidentally bypass the requirements.
+  //
+  // ============================================================
+
+  const title =
+    `${parsed.title} ${parsed.category}`
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim()
+
+
+  const location =
+    `${parsed.location} ${parsed.country} ${parsed.workplace}`
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim()
+
+
+  // ------------------------------------------------------------
+  // Allowed roles
+  // ------------------------------------------------------------
+
+  const allowedRoleKeywords = [
+    'frontend developer',
+    'front end developer',
+    'front-end developer',
+    'frontend engineer',
+    'front end engineer',
+    'front-end engineer',
+
+    'react developer',
+    'react.js developer',
+    'reactjs developer',
+    'react engineer',
+
+    'javascript developer',
+    'javascript engineer',
+    'js developer',
+
+    'web developer',
+    'web engineer',
+
+    'ui developer',
+    'ui engineer',
+    'user interface developer',
+
+    'wordpress developer',
+    'wordpress engineer',
+    'wordpress web developer',
+
+    'woocommerce developer',
+    'woocommerce engineer',
+
+    'web designer developer',
+    'web designer/developer',
+  ]
+
+
+  const hasAllowedRole =
+    allowedRoleKeywords.some(
+      (keyword) =>
+        title.includes(
+          keyword,
+        ),
+    )
+
+
+  // ------------------------------------------------------------
+  // Mumbai
+  // ------------------------------------------------------------
+
+  const mumbaiKeywords = [
+    'mumbai',
+    'bombay',
+    'navi mumbai',
+    'thane',
+    'mumbai metropolitan region',
+    'mumbai metropolitan',
+    'mmr',
+  ]
+
+
+  const isMumbai =
+    mumbaiKeywords.some(
+      (keyword) =>
+        location.includes(
+          keyword,
+        ),
+    )
+
+
+  // ------------------------------------------------------------
+  // USA
+  // ------------------------------------------------------------
+
+  const usaKeywords = [
+    'united states',
+    'united states of america',
+    'usa',
+    'u.s.',
+    'u.s.a',
+    'new york',
+    'california',
+    'texas',
+    'washington',
+    'florida',
+    'massachusetts',
+    'illinois',
+    'new jersey',
+    'virginia',
+    'colorado',
+    'arizona',
+    'georgia',
+    'north carolina',
+    'pennsylvania',
+    'oregon',
+  ]
+
+
+  const isUSA =
+    usaKeywords.some(
+      (keyword) =>
+        location.includes(
+          keyword,
+        ),
+    )
+
+
+  // ------------------------------------------------------------
+  // Worldwide / unsupported location
+  // ------------------------------------------------------------
+
+  const worldwideKeywords = [
+    'worldwide',
+    'remote worldwide',
+    'work from anywhere',
+    'anywhere in the world',
+    'global remote',
+    'global',
+    'europe',
+    'european union',
+    'uk',
+    'united kingdom',
+    'london',
+    'canada',
+    'australia',
+    'uae',
+    'dubai',
+    'germany',
+    'france',
+    'paris',
+    'berlin',
+    'netherlands',
+    'singapore',
+    'ireland',
+    'spain',
+    'italy',
+    'poland',
+    'portugal',
+    'sweden',
+    'switzerland',
+    'denmark',
+    'norway',
+    'new zealand',
+  ]
+
+
+  const unsupportedLocation =
+    worldwideKeywords.some(
+      (keyword) =>
+        location.includes(
+          keyword,
+        ),
+    )
+
+
+  // ------------------------------------------------------------
+  // HARD REJECT
+  // ------------------------------------------------------------
+
+  if (
+    parsed.decision ===
+      'keep'
+  ) {
+    if (
+      !hasAllowedRole
+    ) {
+      parsed.decision =
+        'reject'
+
+      parsed.rejectionReasons.push(
+        'The role is not a target frontend, web, UI, React, JavaScript, WordPress, or WooCommerce development role.',
+      )
+
+      parsed.reason =
+        'Rejected because the actual role is outside Ahmed’s target frontend/web/WordPress roles.'
+    }
+
+
+    if (
+      unsupportedLocation
+    ) {
+      parsed.decision =
+        'reject'
+
+      parsed.rejectionReasons.push(
+        'The job is outside the allowed Mumbai/MMR or USA locations.',
+      )
+
+      parsed.reason =
+        'Rejected because the job location is outside Mumbai/MMR or USA.'
+    }
+
+
+    if (
+      !isMumbai &&
+      !isUSA
+    ) {
+      parsed.decision =
+        'reject'
+
+      parsed.rejectionReasons.push(
+        'The listing does not clearly identify Mumbai/MMR or USA as the job location.',
+      )
+
+      parsed.reason =
+        'Rejected because the job location is not clearly Mumbai/MMR or USA.'
+    }
+  }
+
+
+  // ============================================================
+  // FINAL MATCHED PREFERENCES
+  // ============================================================
+
+  const matched =
+    Array.isArray(
+      parsed.matchedPreferences,
+    )
+      ? parsed.matchedPreferences
+      : []
+
+
+  if (
+    hasAllowedRole &&
+    !matched.some(
+      (item) =>
+        item
+          .toLowerCase()
+          .includes(
+            'frontend',
+          ),
+    )
+  ) {
+    matched.push(
+      'Target frontend/web development role',
+    )
+  }
+
+
+  if (isMumbai) {
+    matched.push(
+      'Mumbai/MMR location',
+    )
+  }
+
+
+  if (isUSA) {
+    matched.push(
+      'USA location',
+    )
+  }
+
+
+  if (
+    location.includes(
+      'remote',
+    )
+  ) {
+    matched.push(
+      'Remote',
+    )
+  }
+
+
+  if (
+    location.includes(
+      'hybrid',
+    )
+  ) {
+    matched.push(
+      'Hybrid',
+    )
+  }
+
+
+  if (
+    location.includes(
+      'on-site',
+    ) ||
+    location.includes(
+      'onsite',
+    ) ||
+    location.includes(
+      'on site',
+    )
+  ) {
+    matched.push(
+      'On-site',
+    )
+  }
+
+
+  parsed.matchedPreferences =
+    Array.from(
+      new Set(
+        matched,
+      ),
+    )
+
+
+  // ============================================================
+  // FINAL SCORE SAFETY
+  // ============================================================
+
+  if (
+    parsed.decision ===
+    'reject'
+  ) {
+    // Don't allow a rejected job to appear as a high-quality
+    // match in downstream UI.
+    parsed.score =
+      Math.min(
+        parsed.score,
+        59,
+      )
+  }
+
+
+  // ============================================================
+  // RETURN
+  // ============================================================
 
   return parsed
 }
