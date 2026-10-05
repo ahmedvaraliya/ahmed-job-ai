@@ -4,10 +4,54 @@ import { supabaseAdmin } from '../config/supabase'
 
 import {
   fetchArbeitnowJobs,
-  fetchArbeitnowUKJobs,
 } from '../sources/arbeitnow'
 
 import type { RawJob } from '../sources/lever'
+
+// ============================================================
+// AHMED JOB HUNTER
+// ============================================================
+//
+// FINAL TARGET
+//
+// 🇮🇳 Mumbai / MMR = 8 jobs
+// 🇺🇸 USA          = 2 jobs
+//
+// Allowed work modes:
+// Remote / Hybrid / On-site
+//
+// Allowed roles:
+// Frontend / React / JavaScript / Web / UI / WordPress
+//
+// Everything else is rejected.
+//
+// ============================================================
+
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const MUMBAI_TARGET = 8
+const USA_TARGET = 2
+
+const TOTAL_TARGET =
+  MUMBAI_TARGET + USA_TARGET
+
+// Gemini will be allowed to inspect enough candidates
+// to actually fill the quotas instead of blindly checking
+// only the first 10 jobs.
+const MAX_MUMBAI_AI_CANDIDATES = 30
+const MAX_USA_AI_CANDIDATES = 20
+
+// Minimum delay between Gemini requests.
+// This protects the free-tier rate limit.
+const GEMINI_DELAY_MS = 6000
+
+
+// ============================================================
+// BASIC HELPERS
+// ============================================================
 
 function normalizeText(value = '') {
   return value
@@ -16,11 +60,39 @@ function normalizeText(value = '') {
     .trim()
 }
 
+
+// ------------------------------------------------------------
+// URL NORMALIZATION
+// ------------------------------------------------------------
+
 function normalizeUrl(value = '') {
   try {
     const url = new URL(value)
 
+    // Remove fragments.
     url.hash = ''
+
+    // Remove common tracking parameters.
+    const trackingParams = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'ref',
+      'source',
+      'src',
+      'tracking',
+      'trk',
+      'gh_src',
+    ]
+
+    for (const parameter of trackingParams) {
+      url.searchParams.delete(parameter)
+    }
+
+    // Sort remaining params.
+    url.searchParams.sort()
 
     if (url.pathname.endsWith('/')) {
       url.pathname = url.pathname.slice(0, -1)
@@ -31,6 +103,11 @@ function normalizeUrl(value = '') {
     return value.trim().toLowerCase()
   }
 }
+
+
+// ------------------------------------------------------------
+// HTTP URL CHECK
+// ------------------------------------------------------------
 
 function isValidHttpUrl(value = '') {
   try {
@@ -45,622 +122,541 @@ function isValidHttpUrl(value = '') {
   }
 }
 
+
+// ------------------------------------------------------------
+// SLEEP
+// ------------------------------------------------------------
+
 function sleep(ms: number) {
-  return new Promise((resolve) =>
-    setTimeout(resolve, ms),
-  )
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }
 
+
 // ============================================================
-// IT / TECH DETECTION
+// ROLE FILTERING
+// ============================================================
+//
+// IMPORTANT:
+//
+// We are NOT looking for "any IT job".
+//
+// Ahmed specifically wants:
+// Frontend / Web / React / JavaScript / UI / WordPress.
+//
 // ============================================================
 
-const itRoleKeywords = [
-  'software',
-  'developer',
-  'development',
-  'frontend',
-  'front-end',
-  'backend',
-  'back-end',
-  'full stack',
-  'full-stack',
+const allowedRoleKeywords = [
+  // Frontend
+  'frontend developer',
+  'front end developer',
+  'front-end developer',
+
+  'frontend engineer',
+  'front end engineer',
+  'front-end engineer',
+
+  'frontend developer',
+  'frontend engineer',
+
+  // React
+  'react developer',
+  'react engineer',
+  'react.js developer',
+  'reactjs developer',
+
+  // JavaScript
+  'javascript developer',
+  'javascript engineer',
+  'js developer',
+
+  // Web
   'web developer',
+  'web engineer',
   'web development',
 
-  'javascript',
-  'typescript',
-  'react',
-  'next.js',
-  'nextjs',
-  'vue',
-  'angular',
-  'node',
-  'node.js',
-  'express',
+  // UI
+  'ui developer',
+  'ui engineer',
+  'user interface developer',
+  'user interface engineer',
 
-  'java',
-  'spring',
-  'python',
-  'django',
-  'flask',
-  'php',
-  'laravel',
-  'ruby',
-  'rails',
-  'c#',
-  '.net',
-  'dotnet',
-  'golang',
-  'go developer',
-  'rust',
-  'kotlin',
-  'swift',
+  // WordPress
+  'wordpress developer',
+  'wordpress engineer',
+  'wordpress web developer',
+  'wordpress developer',
+  'wordpress designer developer',
 
-  'mobile developer',
-  'android developer',
-  'ios developer',
-  'flutter',
-  'react native',
+  // WooCommerce
+  'woocommerce developer',
+  'woocommerce engineer',
 
-  'qa',
-  'quality assurance',
-  'software tester',
-  'test engineer',
-  'automation tester',
-  'sdet',
-
-  'devops',
-  'cloud',
-  'aws',
-  'azure',
-  'gcp',
-  'kubernetes',
-  'docker',
-  'terraform',
-  'sre',
-  'site reliability',
-  'platform engineer',
-
-  'cybersecurity',
-  'cyber security',
-  'security engineer',
-  'information security',
-  'penetration tester',
-  'soc analyst',
-  'security analyst',
-
-  'data analyst',
-  'data engineer',
-  'data scientist',
-  'machine learning',
-  'ml engineer',
-  'ai engineer',
-  'artificial intelligence',
-  'deep learning',
-  'nlp',
-  'computer vision',
-
-  'database',
-  'sql',
-  'mysql',
-  'postgresql',
-  'mongodb',
-  'oracle database',
-
-  'network engineer',
-  'network administrator',
-  'networking',
-  'system administrator',
-  'systems administrator',
-  'systems engineer',
-  'it support',
-  'technical support',
-  'help desk',
-  'service desk',
-
-  'solution architect',
-  'software architect',
-  'cloud architect',
-  'technical architect',
-
-  'wordpress',
-  'shopify',
-  'webflow',
-  'woocommerce',
-
-  'blockchain',
-  'web3',
-  'smart contract',
-
-  'game developer',
-  'game development',
-  'unity',
-  'unreal engine',
-
-  'technical writer',
-  'developer relations',
-  'developer advocate',
-
-  'technical product',
-  'technical project',
-  'technical program',
-  'software engineering manager',
-  'engineering manager',
-
-  'information technology',
-  'information systems',
+  // Relevant web design + development
+  'web designer developer',
+  'web designer/developer',
+  'web design developer',
 ]
 
+
 // ============================================================
-// NON-IT BLOCK LIST
+// HARD ROLE BLOCK LIST
+// ============================================================
+//
+// These roles should never reach Gemini unless the title
+// genuinely contains an allowed technical role.
+//
 // ============================================================
 
-const nonItKeywords = [
-  'accountant',
-  'accounting',
-  'chartered accountant',
-  'ca ',
-  'finance',
-  'financial analyst',
-  'banking',
-  'investment banker',
-
-  'sales',
+const blockedRoleKeywords = [
+  // Sales
+  'account executive',
   'sales executive',
   'sales manager',
+  'sales representative',
+  'sales development',
+  'business development',
   'business development representative',
   'bdr',
   'sdr',
 
-  'marketing',
+  // Marketing
+  'marketing manager',
+  'marketing director',
+  'marketing specialist',
+  'marketing coordinator',
+  'product marketing',
+  'partner marketing',
   'digital marketing',
+  'content marketing',
   'social media manager',
   'seo specialist',
-  'content marketer',
+  'seo manager',
 
+  // Customer success
+  'customer success',
+  'customer success manager',
+  'customer success partner',
+  'client success',
+
+  // HR
   'human resources',
   'human resource',
   'hr manager',
+  'hr specialist',
   'recruiter',
   'recruitment',
   'talent acquisition',
 
+  // Finance
+  'accountant',
+  'accounting',
+  'financial analyst',
+  'finance manager',
+  'investment banker',
+  'banking',
+
+  // Operations
+  'operations manager',
+  'operations specialist',
+  'business operations',
+
+  // Legal
   'lawyer',
-  'legal',
+  'legal counsel',
   'attorney',
 
+  // Medical
   'doctor',
-  'medical',
   'nurse',
-  'healthcare',
+  'medical doctor',
 
-  'hotel',
-  'hospitality',
-  'chef',
-  'restaurant',
-
-  'retail',
-  'store manager',
-
+  // Education
   'teacher',
   'teaching',
-  'school teacher',
+  'professor',
 
-  'real estate',
+  // Hospitality
+  'hotel manager',
+  'hospitality',
+  'chef',
+  'restaurant manager',
 
+  // Retail
+  'retail manager',
+  'store manager',
+
+  // Logistics
+  'warehouse',
+  'delivery driver',
+  'driver',
+  'logistics manager',
+
+  // Construction
+  'construction',
   'civil engineer',
   'mechanical engineer',
   'electrical engineer',
   'chemical engineer',
   'structural engineer',
-
-  'architectural designer',
-
-  'driver',
-  'delivery driver',
-  'warehouse',
-  'construction',
-  'security guard',
 ]
 
-// ============================================================
-// LOCATION HELPERS
-// ============================================================
 
-const indiaKeywords = [
-  'india',
-  'indian',
-  'mumbai',
-  'bombay',
-  'delhi',
-  'new delhi',
-  'ncr',
-  'noida',
-  'gurgaon',
-  'gurugram',
-  'bengaluru',
-  'bangalore',
-  'hyderabad',
-  'pune',
-  'chennai',
-  'kolkata',
-  'ahmedabad',
-  'surat',
-  'jaipur',
-  'kochi',
-  'coimbatore',
-  'lucknow',
-  'indore',
-  'bhubaneswar',
-  'chandigarh',
-  'nagpur',
-  'vadodara',
-  'visakhapatnam',
-  'thiruvananthapuram',
-]
+// ============================================================
+// LOCATION KEYWORDS
+// ============================================================
 
 const mumbaiKeywords = [
   'mumbai',
   'bombay',
+  'mumbai metropolitan region',
   'mumbai metropolitan',
   'mmr',
-  'thane',
   'navi mumbai',
+  'thane',
 ]
 
-const preferredCountries = [
-  'usa',
+
+const indiaKeywords = [
+  'india',
+  'indian',
+]
+
+
+const usaKeywords = [
   'united states',
-  'us',
+  'united states of america',
+  'usa',
+  'u.s.a.',
   'u.s.',
-  'america',
-
-  'uk',
-  'united kingdom',
-  'england',
-
-  'canada',
-
-  'australia',
-
-  'uae',
-  'united arab emirates',
-  'dubai',
-  'abu dhabi',
+  'us',
 ]
 
-const remoteKeywords = [
-  'remote',
-  'fully remote',
-  'remote worldwide',
-  'worldwide remote',
-  'remote anywhere',
-  'work from anywhere',
-  'work anywhere',
-  'anywhere in the world',
-  'global remote',
-  'distributed',
-]
 
-function containsAny(
-  value: string,
-  keywords: string[],
-) {
-  return keywords.some((keyword) =>
-    value.includes(keyword),
-  )
-}
+// ============================================================
+// LOCATION HELPERS
+// ============================================================
+//
+// VERY IMPORTANT:
+//
+// We intentionally do NOT include description/title here.
+//
+// Otherwise a job description saying:
+// "We have offices in Mumbai"
+// could incorrectly become a Mumbai job.
+//
+// ============================================================
 
-function getLocationText(job: RawJob) {
+function getStrictLocationText(job: RawJob) {
   return normalizeText(
     [
       job.location,
       job.country,
       job.workplace,
-      job.description,
-      job.title,
     ]
       .filter(Boolean)
       .join(' '),
   )
 }
 
-function isIndiaJob(job: RawJob) {
-  const text = getLocationText(job)
 
-  return containsAny(text, indiaKeywords)
+function getJobTitleText(job: RawJob) {
+  return normalizeText(
+    [
+      job.title,
+      job.category,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  )
 }
 
+
+// ============================================================
+// MUMBAI DETECTION
+// ============================================================
+
 function isMumbaiJob(job: RawJob) {
+  const locationText =
+    getStrictLocationText(job)
+
+  return mumbaiKeywords.some(
+    (keyword) =>
+      locationText.includes(keyword),
+  )
+}
+
+
+// ============================================================
+// USA DETECTION
+// ============================================================
+
+function isUSAJob(job: RawJob) {
+  const locationText =
+    getStrictLocationText(job)
+
+  return usaKeywords.some(
+    (keyword) =>
+      locationText.includes(keyword),
+  )
+}
+
+
+// ============================================================
+// INDIA DETECTION
+// ============================================================
+
+function isIndiaJob(job: RawJob) {
+  const locationText =
+    getStrictLocationText(job)
+
+  return indiaKeywords.some(
+    (keyword) =>
+      locationText.includes(keyword),
+  )
+}
+
+
+// ============================================================
+// WORKPLACE DETECTION
+// ============================================================
+
+function getWorkplaceType(job: RawJob) {
   const text = normalizeText(
     [
       job.location,
       job.country,
-      job.description,
+      job.workplace,
     ]
       .filter(Boolean)
       .join(' '),
   )
 
-  return containsAny(text, mumbaiKeywords)
+  if (
+    text.includes('remote') ||
+    text.includes('work from home') ||
+    text.includes('wfh')
+  ) {
+    return 'remote'
+  }
+
+  if (
+    text.includes('hybrid')
+  ) {
+    return 'hybrid'
+  }
+
+  if (
+    text.includes('on-site') ||
+    text.includes('onsite') ||
+    text.includes('on site')
+  ) {
+    return 'onsite'
+  }
+
+  return 'unknown'
 }
 
-function isRemoteJob(job: RawJob) {
-  const text = getLocationText(job)
 
-  return containsAny(text, remoteKeywords)
-}
+// ============================================================
+// ALLOWED ROLE CHECK
+// ============================================================
 
-function isPreferredForeignJob(job: RawJob) {
-  const text = getLocationText(job)
+function hasAllowedRole(job: RawJob) {
+  const title =
+    getJobTitleText(job)
 
-  return containsAny(text, preferredCountries)
-}
-
-function isLikelyITJob(job: RawJob) {
-  const title = normalizeText(job.title)
-  const category = normalizeText(job.category)
-  const description = normalizeText(
-    job.description,
+  return allowedRoleKeywords.some(
+    (keyword) =>
+      title.includes(keyword),
   )
+}
 
-  const titleCategoryText =
-    `${title} ${category}`
 
-  const titleHasIT =
-    containsAny(
-      titleCategoryText,
-      itRoleKeywords,
-    )
+// ============================================================
+// BLOCKED ROLE CHECK
+// ============================================================
 
-  const descriptionHasIT =
-    containsAny(
-      description,
-      itRoleKeywords,
-    )
+function hasBlockedRole(job: RawJob) {
+  const title =
+    getJobTitleText(job)
+
+  return blockedRoleKeywords.some(
+    (keyword) =>
+      title.includes(keyword),
+  )
+}
+
+
+// ============================================================
+// TARGET ROLE CHECK
+// ============================================================
+
+function isTargetRole(job: RawJob) {
+  const allowed =
+    hasAllowedRole(job)
 
   const blocked =
-    containsAny(
-      titleCategoryText,
-      nonItKeywords,
-    )
+    hasBlockedRole(job)
 
-  if (blocked && !titleHasIT) {
+  // Explicit target role always wins only when
+  // the title is clearly technical.
+  if (allowed) {
+    return true
+  }
+
+  if (blocked) {
     return false
-  }
-
-  return (
-    titleHasIT ||
-    descriptionHasIT
-  )
-}
-
-// ============================================================
-// LOCATION ELIGIBILITY
-// ============================================================
-
-function isLocationEligible(job: RawJob) {
-  const india = isIndiaJob(job)
-  const mumbai = isMumbaiJob(job)
-  const remote = isRemoteJob(job)
-  const foreign = isPreferredForeignJob(job)
-
-  // India is ALWAYS eligible.
-  if (india) {
-    return true
-  }
-
-  // Worldwide / genuine remote is eligible.
-  if (remote) {
-    return true
-  }
-
-  // Preferred foreign countries are eligible.
-  if (foreign) {
-    return true
-  }
-
-  // Unknown locations can still go through Gemini
-  // if they look like legitimate IT jobs.
-  const location = normalizeText(
-    [
-      job.location,
-      job.country,
-    ]
-      .filter(Boolean)
-      .join(' '),
-  )
-
-  if (!location) {
-    return true
   }
 
   return false
 }
 
+
+// ============================================================
+// TARGET LOCATION CHECK
+// ============================================================
+
+function getLocationBucket(
+  job: RawJob,
+): 'mumbai' | 'usa' | 'other' {
+  if (isMumbaiJob(job)) {
+    return 'mumbai'
+  }
+
+  if (isUSAJob(job)) {
+    return 'usa'
+  }
+
+  return 'other'
+}
+
+
+// ============================================================
+// CANDIDATE ELIGIBILITY
+// ============================================================
+
+function isMumbaiCandidate(job: RawJob) {
+  return (
+    isMumbaiJob(job) &&
+    isTargetRole(job)
+  )
+}
+
+
+function isUSACandidate(job: RawJob) {
+  return (
+    isUSAJob(job) &&
+    isTargetRole(job)
+  )
+}
+
+
 // ============================================================
 // PRIORITY SCORE
 // ============================================================
+//
+// This is NOT the final AI decision.
+//
+// It only determines which candidate should be shown
+// to Gemini first.
+//
+// ============================================================
 
 function getPriorityScore(job: RawJob) {
-  const text = getLocationText(job)
+  const title =
+    normalizeText(job.title)
+
+  const location =
+    getStrictLocationText(job)
 
   let score = 0
 
-  // ----------------------------------------------------------
-  // INDIA
-  // ----------------------------------------------------------
-
-  if (isIndiaJob(job)) {
-    score += 100
-  }
 
   // ----------------------------------------------------------
-  // MUMBAI
+  // LOCATION
   // ----------------------------------------------------------
 
   if (isMumbaiJob(job)) {
+    score += 200
+  }
+
+  if (isUSAJob(job)) {
+    score += 150
+  }
+
+
+  // ----------------------------------------------------------
+  // ROLE
+  // ----------------------------------------------------------
+
+  if (
+    title.includes('frontend') ||
+    title.includes('front end') ||
+    title.includes('front-end')
+  ) {
     score += 100
   }
 
-  // ----------------------------------------------------------
-  // REMOTE
-  // ----------------------------------------------------------
+  if (
+    title.includes('react')
+  ) {
+    score += 90
+  }
 
-  if (isRemoteJob(job)) {
+  if (
+    title.includes('javascript')
+  ) {
+    score += 80
+  }
+
+  if (
+    title.includes('wordpress')
+  ) {
+    score += 80
+  }
+
+  if (
+    title.includes('woocommerce')
+  ) {
+    score += 75
+  }
+
+  if (
+    title.includes('web developer') ||
+    title.includes('web engineer')
+  ) {
     score += 70
   }
 
-  // ----------------------------------------------------------
-  // WORLDWIDE
-  // ----------------------------------------------------------
-
   if (
-    text.includes('worldwide') ||
-    text.includes('global') ||
-    text.includes('anywhere')
+    title.includes('ui developer') ||
+    title.includes('ui engineer')
   ) {
-    score += 55
+    score += 70
   }
 
-  // ----------------------------------------------------------
-  // OTHER INDIAN TECH HUBS
-  // ----------------------------------------------------------
-
-  const indianTechCities = [
-    'bengaluru',
-    'bangalore',
-    'hyderabad',
-    'pune',
-    'delhi',
-    'new delhi',
-    'noida',
-    'gurgaon',
-    'gurugram',
-    'chennai',
-    'ahmedabad',
-    'kolkata',
-    'kochi',
-    'jaipur',
-  ]
-
-  if (
-    containsAny(
-      text,
-      indianTechCities,
-    )
-  ) {
-    score += 50
-  }
 
   // ----------------------------------------------------------
-  // FOREIGN PRIORITY
+  // WORKPLACE
   // ----------------------------------------------------------
 
-  if (
-    text.includes('united states') ||
-    text.includes('usa') ||
-    text.includes('u.s.')
-  ) {
-    score += 35
-  }
+  const workplace =
+    getWorkplaceType(job)
 
-  if (
-    text.includes('united kingdom') ||
-    text.includes('uk')
-  ) {
-    score += 32
-  }
-
-  if (text.includes('canada')) {
+  if (workplace === 'remote') {
     score += 30
   }
 
-  if (text.includes('australia')) {
-    score += 28
+  if (workplace === 'hybrid') {
+    score += 20
   }
 
-  if (
-    text.includes('uae') ||
-    text.includes('dubai') ||
-    text.includes('abu dhabi')
-  ) {
-    score += 26
+  if (workplace === 'onsite') {
+    score += 10
   }
 
-  // ----------------------------------------------------------
-  // CORE SOFTWARE
-  // ----------------------------------------------------------
-
-  const title = normalizeText(
-    job.title,
-  )
-
-  if (
-    containsAny(title, [
-      'software engineer',
-      'software developer',
-      'frontend',
-      'front-end',
-      'backend',
-      'back-end',
-      'full stack',
-      'full-stack',
-      'web developer',
-      'developer',
-    ])
-  ) {
-    score += 30
-  }
-
-  // ----------------------------------------------------------
-  // AI / DATA / SECURITY
-  // ----------------------------------------------------------
-
-  if (
-    containsAny(title, [
-      'ai',
-      'machine learning',
-      'data engineer',
-      'data scientist',
-      'cybersecurity',
-      'security engineer',
-    ])
-  ) {
-    score += 25
-  }
-
-  // ----------------------------------------------------------
-  // DEVOPS / CLOUD
-  // ----------------------------------------------------------
-
-  if (
-    containsAny(title, [
-      'devops',
-      'cloud',
-      'sre',
-      'platform',
-      'site reliability',
-    ])
-  ) {
-    score += 24
-  }
-
-  // ----------------------------------------------------------
-  // QA
-  // ----------------------------------------------------------
-
-  if (
-    containsAny(title, [
-      'qa',
-      'quality assurance',
-      'test engineer',
-      'sdet',
-    ])
-  ) {
-    score += 18
-  }
 
   // ----------------------------------------------------------
   // FRESHNESS
@@ -672,24 +668,73 @@ function getPriorityScore(job: RawJob) {
         job.postedAt,
       ).getTime()
 
-    const hoursAgo =
-      Math.max(
-        0,
-        Date.now() -
-          postedTime,
-      ) / 3600000
+    if (
+      Number.isFinite(
+        postedTime,
+      )
+    ) {
+      const hoursAgo =
+        Math.max(
+          0,
+          Date.now() -
+            postedTime,
+        ) / 3600000
 
-    if (hoursAgo <= 24) {
-      score += 20
-    } else if (hoursAgo <= 72) {
-      score += 12
-    } else if (hoursAgo <= 168) {
-      score += 5
+      if (hoursAgo <= 24) {
+        score += 40
+      } else if (hoursAgo <= 72) {
+        score += 25
+      } else if (hoursAgo <= 168) {
+        score += 10
+      }
     }
   }
 
+
+  // Keep variable used for future debugging.
+  void location
+
   return score
 }
+
+
+// ============================================================
+// STABLE JOB KEY
+// ============================================================
+//
+// Used for duplicate prevention inside the same run.
+//
+// ============================================================
+
+function createJobIdentity(job: RawJob) {
+  const url =
+    normalizeUrl(
+      job.applyUrl || '',
+    )
+
+  const company =
+    normalizeText(
+      job.company || '',
+    )
+
+  const title =
+    normalizeText(
+      job.title || '',
+    )
+
+  const location =
+    normalizeText(
+      job.location || '',
+    )
+
+  return [
+    url,
+    company,
+    title,
+    location,
+  ].join('::')
+}
+
 
 // ============================================================
 // MAIN PIPELINE
@@ -704,6 +749,22 @@ export async function runJobPipeline() {
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   )
 
+  console.log(
+    `🎯 TARGET: ${MUMBAI_TARGET} Mumbai + ${USA_TARGET} USA`,
+  )
+
+  console.log(
+    '🎨 ROLES: Frontend / React / JavaScript / Web / UI / WordPress',
+  )
+
+  console.log(
+    '🌍 COUNTRIES: Mumbai, India + USA only',
+  )
+
+  console.log(
+    '💼 WORKPLACE: Remote / Hybrid / On-site',
+  )
+
   // ==========================================================
   // FETCH SOURCES
   // ==========================================================
@@ -711,7 +772,7 @@ export async function runJobPipeline() {
   const allJobs: RawJob[] = []
 
   console.log(
-    '🔎 Fetching Arbeitnow...',
+    '\n🔎 Fetching Arbeitnow...',
   )
 
   try {
@@ -726,35 +787,17 @@ export async function runJobPipeline() {
   } catch (error) {
     console.error(
       '⚠️ Arbeitnow failed:',
-      error,
-    )
-  }
-
-  console.log(
-    '🔎 Fetching Arbeitnow UK...',
-  )
-
-  try {
-    const jobs =
-      await fetchArbeitnowUKJobs()
-
-    console.log(
-      `   📥 ${jobs.length} jobs`,
-    )
-
-    allJobs.push(...jobs)
-  } catch (error) {
-    console.error(
-      '⚠️ Arbeitnow UK failed:',
       error instanceof Error
         ? error.message
         : String(error),
     )
   }
 
+
   console.log(
     `📦 TOTAL COLLECTED: ${allJobs.length}`,
   )
+
 
   // ==========================================================
   // VALID URL FILTER
@@ -768,9 +811,11 @@ export async function runJobPipeline() {
         ),
     )
 
+
   console.log(
     `🔗 VALID APPLY URL JOBS: ${validUrlJobs.length}`,
   )
+
 
   // ==========================================================
   // DEDUPE APPLY URL
@@ -785,52 +830,84 @@ export async function runJobPipeline() {
         job.applyUrl,
       )
 
+    if (!url) {
+      continue
+    }
+
     if (!urlMap.has(url)) {
-      urlMap.set(url, job)
+      urlMap.set(
+        url,
+        job,
+      )
     }
   }
+
 
   const uniqueUrlJobs =
     Array.from(
       urlMap.values(),
     )
 
+
   console.log(
     `♻️ UNIQUE APPLY URLs: ${uniqueUrlJobs.length}`,
   )
 
+
   // ==========================================================
-  // DEDUPE COMPANY + TITLE
+  // DEDUPE COMPANY + TITLE + LOCATION
   // ==========================================================
 
   const jobMap =
     new Map<string, RawJob>()
 
   for (const job of uniqueUrlJobs) {
+    const company =
+      normalizeText(
+        job.company,
+      )
+
+    const title =
+      normalizeText(
+        job.title,
+      )
+
+    const location =
+      normalizeText(
+        job.location,
+      )
+
     const key =
-  `${normalizeText(job.company)}::${normalizeText(job.title)}`
+      `${company}::${title}::${location}`
 
     if (!jobMap.has(key)) {
-      jobMap.set(key, job)
+      jobMap.set(
+        key,
+        job,
+      )
     }
   }
+
 
   const uniqueJobs =
     Array.from(
       jobMap.values(),
     )
 
+
   console.log(
-    `🧠 UNIQUE COMPANY + TITLE JOBS: ${uniqueJobs.length}`,
+    `🧠 UNIQUE COMPANY + TITLE + LOCATION JOBS: ${uniqueJobs.length}`,
   )
 
+
   // ==========================================================
-  // LOAD EXISTING JOBS
+  // LOAD EXISTING SUPABASE JOBS
   // ==========================================================
 
   console.log(
     '🔎 Checking existing Supabase jobs...',
   )
+
 
   const {
     data: existingJobs,
@@ -839,8 +916,9 @@ export async function runJobPipeline() {
     await supabaseAdmin
       .from('jobs')
       .select(
-        'id,title,company,apply_url',
+        'id,title,company,location,country,apply_url',
       )
+
 
   if (existingError) {
     throw new Error(
@@ -848,25 +926,68 @@ export async function runJobPipeline() {
     )
   }
 
-  const existingUrlSet =
-    new Set(
-      (existingJobs || [])
-        .map((job) =>
-          normalizeUrl(
-            job.apply_url || '',
-          ),
-        )
-        .filter(Boolean),
-    )
 
-  const existingTitleSet =
+  // ==========================================================
+  // EXISTING URL SET
+  // ==========================================================
+
+  const existingUrlSet =
     new Set(
       (existingJobs || [])
         .map(
           (job) =>
-            `${normalizeText(job.company)}::${normalizeText(job.title)}`,
+            normalizeUrl(
+              job.apply_url ||
+                '',
+            ),
+        )
+        .filter(Boolean),
+    )
+
+
+  // ==========================================================
+  // EXISTING JOB IDENTITY SET
+  // ==========================================================
+
+  const existingIdentitySet =
+    new Set(
+      (existingJobs || [])
+        .map(
+          (job) => {
+            const url =
+              normalizeUrl(
+                job.apply_url ||
+                  '',
+              )
+
+            const company =
+              normalizeText(
+                job.company ||
+                  '',
+              )
+
+            const title =
+              normalizeText(
+                job.title ||
+                  '',
+              )
+
+            const location =
+              normalizeText(
+                job.location ||
+                  '',
+              )
+
+            return [
+              url,
+              company,
+              title,
+              location,
+            ].join('::')
+          },
         ),
     )
+
 
   // ==========================================================
   // REMOVE EXISTING
@@ -880,19 +1001,22 @@ export async function runJobPipeline() {
             job.applyUrl,
           )
 
-        const titleKey =
-          `${normalizeText(job.company)}::${normalizeText(job.title)}`
+        const identity =
+          createJobIdentity(
+            job,
+          )
 
         return (
           !existingUrlSet.has(
             url,
           ) &&
-          !existingTitleSet.has(
-            titleKey,
+          !existingIdentitySet.has(
+            identity,
           )
         )
       },
     )
+
 
   console.log(
     `   💾 EXISTING JOBS: ${existingJobs?.length || 0}`,
@@ -902,79 +1026,143 @@ export async function runJobPipeline() {
     `   🆕 FRESH JOBS: ${freshJobs.length}`,
   )
 
+
   // ==========================================================
-  // IT FILTER
+  // STRICT ROLE FILTER
   // ==========================================================
 
-  const likelyRelevant =
+  const roleCandidates =
     freshJobs.filter(
       (job) =>
-        isLikelyITJob(job) &&
-        isLocationEligible(job),
+        isTargetRole(job),
     )
 
+
   console.log(
-    `💻 IT + LOCATION JOBS: ${likelyRelevant.length}`,
+    `🎯 TARGET ROLE JOBS: ${roleCandidates.length}`,
   )
 
+
   // ==========================================================
-  // PRIORITIZE
+  // SPLIT MUMBAI / USA
   // ==========================================================
 
-  const prioritized =
-    likelyRelevant
-      .map((job) => ({
-        job,
-        priority:
-          getPriorityScore(
-            job,
-          ),
-      }))
+  const mumbaiCandidates =
+    roleCandidates
+      .filter(
+        isMumbaiCandidate,
+      )
+      .map(
+        (job) => ({
+          job,
+          priority:
+            getPriorityScore(
+              job,
+            ),
+        }),
+      )
       .sort(
         (a, b) =>
           b.priority -
           a.priority,
       )
 
+
+  const usaCandidates =
+    roleCandidates
+      .filter(
+        isUSACandidate,
+      )
+      .map(
+        (job) => ({
+          job,
+          priority:
+            getPriorityScore(
+              job,
+            ),
+        }),
+      )
+      .sort(
+        (a, b) =>
+          b.priority -
+          a.priority,
+      )
+
+
   console.log(
-    '\n🔥 TOP PRIORITY JOBS:',
+    `🇮🇳 MUMBAI CANDIDATES: ${mumbaiCandidates.length}`,
   )
 
-  prioritized
-    .slice(0, 10)
+  console.log(
+    `🇺🇸 USA CANDIDATES: ${usaCandidates.length}`,
+  )
+
+
+  // ==========================================================
+  // SHOW CANDIDATES
+  // ==========================================================
+
+  console.log(
+    '\n🔥 TOP MUMBAI CANDIDATES:',
+  )
+
+  mumbaiCandidates
+    .slice(
+      0,
+      10,
+    )
     .forEach(
       ({
         job,
         priority,
       }) => {
         console.log(
-          `   ${priority} | ${job.title} | ${job.company} | ${job.location || 'Remote/Unknown'}`,
+          `   ${priority} | ${job.title} | ${job.company} | ${job.location || 'Unknown'}`,
         )
       },
     )
 
-  // ==========================================================
-  // GEMINI LIMIT
-  // ==========================================================
-
-  const MAX_AI_JOBS_PER_RUN = 10
-
-  const jobsForAI =
-    prioritized
-      .slice(
-        0,
-        MAX_AI_JOBS_PER_RUN,
-      )
-      .map(
-        (item) => item.job,
-      )
 
   console.log(
-    `\n🧠 GEMINI ANALYSIS: ${jobsForAI.length} jobs`,
+    '\n🔥 TOP USA CANDIDATES:',
   )
 
+  usaCandidates
+    .slice(
+      0,
+      10,
+    )
+    .forEach(
+      ({
+        job,
+        priority,
+      }) => {
+        console.log(
+          `   ${priority} | ${job.title} | ${job.company} | ${job.location || 'Unknown'}`,
+        )
+      },
+    )
+
+
   // ==========================================================
-  // PROCESS
+  // CANDIDATE LIMIT
+  // ==========================================================
+
+  const mumbaiForAI =
+    mumbaiCandidates.slice(
+      0,
+      MAX_MUMBAI_AI_CANDIDATES,
+    )
+
+  const usaForAI =
+    usaCandidates.slice(
+      0,
+      MAX_USA_AI_CANDIDATES,
+    )
+
+
+  // ==========================================================
+  // PROCESSING STATE
   // ==========================================================
 
   let analyzed = 0
@@ -983,35 +1171,139 @@ export async function runJobPipeline() {
   let duplicates = 0
   let failed = 0
 
+  let mumbaiSaved = 0
+  let usaSaved = 0
+
+
+  // Prevent same job from being saved twice
+  // even if source data behaves unexpectedly.
+  const runIdentitySet =
+    new Set<string>()
+
+
+  // Existing jobs are already protected.
   for (
-    let index = 0;
-    index < jobsForAI.length;
-    index++
+    const identity
+    of existingIdentitySet
   ) {
-    const job =
-      jobsForAI[index]
+    runIdentitySet.add(
+      identity,
+    )
+  }
+
+
+  // ==========================================================
+  // HUMAN-LIKE GEMINI PROCESSOR
+  // ==========================================================
+
+  async function processCandidate(
+    job: RawJob,
+    bucket: 'mumbai' | 'usa',
+  ) {
+    // Quota already full.
+    if (
+      bucket === 'mumbai' &&
+      mumbaiSaved >=
+        MUMBAI_TARGET
+    ) {
+      return
+    }
+
+    if (
+      bucket === 'usa' &&
+      usaSaved >= USA_TARGET
+    ) {
+      return
+    }
+
+
+    const identity =
+      createJobIdentity(
+        job,
+      )
+
+
+    // --------------------------------------------------------
+    // DUPLICATE CHECK BEFORE AI
+    // --------------------------------------------------------
+
+    if (
+      runIdentitySet.has(
+        identity,
+      )
+    ) {
+      duplicates++
+
+      console.log(
+        '♻️ Duplicate skipped before AI',
+      )
+
+      return
+    }
+
+
+    const locationBucket =
+      getLocationBucket(
+        job,
+      )
+
+    if (
+      locationBucket !==
+      bucket
+    ) {
+      return
+    }
+
+
+    // --------------------------------------------------------
+    // LOG
+    // --------------------------------------------------------
+
+    const currentNumber =
+      analyzed + 1
+
+    console.log(
+      `\n[${currentNumber}] ${job.title}`,
+    )
+
+    console.log(
+      `🏢 ${job.company}`,
+    )
+
+    console.log(
+      `📍 ${job.location || 'Unknown'}`,
+    )
+
+    console.log(
+      `🌍 ${bucket.toUpperCase()}`,
+    )
+
+    console.log(
+      `💼 ${getWorkplaceType(job)}`,
+    )
+
+    console.log(
+      `⭐ Priority: ${getPriorityScore(job)}`,
+    )
+
+
+    // --------------------------------------------------------
+    // GEMINI RATE LIMIT
+    // --------------------------------------------------------
+
+    if (
+      analyzed > 0
+    ) {
+      await sleep(
+        GEMINI_DELAY_MS,
+      )
+    }
+
 
     try {
-      console.log(
-        `\n[${index + 1}/${jobsForAI.length}] ${job.title}`,
-      )
-
-      console.log(
-        `🏢 ${job.company}`,
-      )
-
-      console.log(
-        `📍 ${job.location || 'Remote / Worldwide'}`,
-      )
-
-      console.log(
-        `⭐ Priority: ${getPriorityScore(job)}`,
-      )
-
-      // Rate-limit protection for Gemini free tier.
-      if (index > 0) {
-        await sleep(6000)
-      }
+      // ------------------------------------------------------
+      // AI ANALYSIS
+      // ------------------------------------------------------
 
       const analysis =
         await analyzeJob(
@@ -1019,6 +1311,11 @@ export async function runJobPipeline() {
         )
 
       analyzed++
+
+
+      // ------------------------------------------------------
+      // DECISION
+      // ------------------------------------------------------
 
       if (
         analysis.decision !==
@@ -1030,19 +1327,151 @@ export async function runJobPipeline() {
           `❌ Rejected: ${analysis.reason}`,
         )
 
-        continue
+        return
       }
+
+
+      // ------------------------------------------------------
+      // FINAL LOCATION SAFETY
+      // ------------------------------------------------------
+
+      if (
+        bucket ===
+          'mumbai' &&
+        !isMumbaiJob(job)
+      ) {
+        rejected++
+
+        console.log(
+          '❌ Rejected: AI accepted it but location is not Mumbai/MMR.',
+        )
+
+        return
+      }
+
+
+      if (
+        bucket ===
+          'usa' &&
+        !isUSAJob(job)
+      ) {
+        rejected++
+
+        console.log(
+          '❌ Rejected: AI accepted it but location is not USA.',
+        )
+
+        return
+      }
+
+
+      // ------------------------------------------------------
+      // FINAL ROLE SAFETY
+      // ------------------------------------------------------
+
+      if (
+        !isTargetRole(job)
+      ) {
+        rejected++
+
+        console.log(
+          '❌ Rejected: role is outside Ahmed target roles.',
+        )
+
+        return
+      }
+
+
+      // ------------------------------------------------------
+      // FINAL DUPLICATE CHECK
+      // ------------------------------------------------------
+
+      if (
+        runIdentitySet.has(
+          identity,
+        )
+      ) {
+        duplicates++
+
+        console.log(
+          '♻️ Duplicate detected before save.',
+        )
+
+        return
+      }
+
+
+      // ------------------------------------------------------
+      // SAVE
+      // ------------------------------------------------------
 
       const result =
         await saveAnalyzedJob(
           analysis,
         )
 
-      if (result.saved) {
+
+      if (
+        result.saved
+      ) {
+        // ----------------------------------------------------
+        // FINAL QUOTA SAFETY
+        // ----------------------------------------------------
+
+        if (
+          bucket ===
+            'mumbai' &&
+          mumbaiSaved >=
+            MUMBAI_TARGET
+        ) {
+          console.log(
+            '⚠️ Mumbai quota already full. Save result ignored.',
+          )
+
+          return
+        }
+
+
+        if (
+          bucket ===
+            'usa' &&
+          usaSaved >=
+            USA_TARGET
+        ) {
+          console.log(
+            '⚠️ USA quota already full. Save result ignored.',
+          )
+
+          return
+        }
+
+
+        runIdentitySet.add(
+          identity,
+        )
+
+
         saved++
 
+
+        if (
+          bucket ===
+          'mumbai'
+        ) {
+          mumbaiSaved++
+        }
+
+
+        if (
+          bucket ===
+          'usa'
+        ) {
+          usaSaved++
+        }
+
+
         console.log(
-          '✅ SAVED TO SUPABASE',
+          `✅ SAVED TO SUPABASE | ${bucket.toUpperCase()} ${bucket === 'mumbai' ? mumbaiSaved : usaSaved}`,
         )
       } else if (
         result.reason ===
@@ -1072,12 +1501,70 @@ export async function runJobPipeline() {
     }
   }
 
+
   // ==========================================================
-  // SUMMARY
+  // MUMBAI FIRST
+  // ==========================================================
+  //
+  // We intentionally fill Mumbai first.
+  //
+  // This guarantees that USA jobs cannot accidentally consume
+  // Mumbai's quota.
+  //
   // ==========================================================
 
   console.log(
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '\n🇮🇳 STARTING MUMBAI SCREENING',
+  )
+
+  for (
+    const item of mumbaiForAI
+  ) {
+    if (
+      mumbaiSaved >=
+      MUMBAI_TARGET
+    ) {
+      break
+    }
+
+    await processCandidate(
+      item.job,
+      'mumbai',
+    )
+  }
+
+
+  // ==========================================================
+  // USA SECOND
+  // ==========================================================
+
+  console.log(
+    '\n🇺🇸 STARTING USA SCREENING',
+  )
+
+  for (
+    const item of usaForAI
+  ) {
+    if (
+      usaSaved >=
+      USA_TARGET
+    ) {
+      break
+    }
+
+    await processCandidate(
+      item.job,
+      'usa',
+    )
+  }
+
+
+  // ==========================================================
+  // FINAL RESULT
+  // ==========================================================
+
+  console.log(
+    '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   )
 
   console.log(
@@ -1089,78 +1576,131 @@ export async function runJobPipeline() {
   )
 
   console.log(
-    `Collected:        ${allJobs.length}`,
+    `Collected:              ${allJobs.length}`,
   )
 
   console.log(
-    `Valid URLs:       ${validUrlJobs.length}`,
+    `Valid URLs:             ${validUrlJobs.length}`,
   )
 
   console.log(
-    `Unique URLs:      ${uniqueUrlJobs.length}`,
+    `Unique URLs:            ${uniqueUrlJobs.length}`,
   )
 
   console.log(
-    `Unique Jobs:      ${uniqueJobs.length}`,
+    `Unique Jobs:            ${uniqueJobs.length}`,
   )
 
   console.log(
-    `Already Saved:    ${
+    `Already Saved:          ${
       uniqueJobs.length -
       freshJobs.length
     }`,
   )
 
   console.log(
-    `Fresh Jobs:       ${freshJobs.length}`,
+    `Fresh Jobs:             ${freshJobs.length}`,
   )
 
   console.log(
-    `IT + Location:    ${likelyRelevant.length}`,
+    `Target Role Jobs:       ${roleCandidates.length}`,
   )
 
   console.log(
-    `Analyzed:         ${analyzed}`,
+    `Mumbai Candidates:      ${mumbaiCandidates.length}`,
   )
 
   console.log(
-    `Saved:            ${saved}`,
+    `USA Candidates:         ${usaCandidates.length}`,
   )
 
   console.log(
-    `Rejected:         ${rejected}`,
+    `Analyzed:               ${analyzed}`,
   )
 
   console.log(
-    `Duplicates:       ${duplicates}`,
+    `🇮🇳 Mumbai Saved:        ${mumbaiSaved}/${MUMBAI_TARGET}`,
   )
 
   console.log(
-    `Failed:           ${failed}`,
+    `🇺🇸 USA Saved:           ${usaSaved}/${USA_TARGET}`,
+  )
+
+  console.log(
+    `Total Saved:            ${saved}/${TOTAL_TARGET}`,
+  )
+
+  console.log(
+    `Rejected:               ${rejected}`,
+  )
+
+  console.log(
+    `Duplicates:             ${duplicates}`,
+  )
+
+  console.log(
+    `Failed:                 ${failed}`,
   )
 
   console.log(
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   )
 
+
+  // ==========================================================
+  // FINAL JSON
+  // ==========================================================
+
   return {
-    collected: allJobs.length,
+    collected:
+      allJobs.length,
+
     validApplyUrls:
       validUrlJobs.length,
+
     uniqueApplyUrls:
       uniqueUrlJobs.length,
-    unique: uniqueJobs.length,
+
+    unique:
+      uniqueJobs.length,
+
     alreadySaved:
       uniqueJobs.length -
       freshJobs.length,
+
     fresh:
       freshJobs.length,
-    likelyRelevant:
-      likelyRelevant.length,
+
+    targetRoleJobs:
+      roleCandidates.length,
+
+    mumbaiCandidates:
+      mumbaiCandidates.length,
+
+    usaCandidates:
+      usaCandidates.length,
+
     analyzed,
+
     saved,
+
+    mumbaiSaved,
+
+    usaSaved,
+
+    targetMumbai:
+      MUMBAI_TARGET,
+
+    targetUSA:
+      USA_TARGET,
+
+    targetTotal:
+      TOTAL_TARGET,
+
     rejected,
+
     duplicates,
+
     failed,
   }
 }

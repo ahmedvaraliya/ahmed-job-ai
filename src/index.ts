@@ -8,9 +8,7 @@ import {
 } from './runs/jobRun'
 
 async function main() {
-  console.log(
-    '🤖 Ahmed Job AI starting...\n',
-  )
+  console.log('🤖 Ahmed Job AI starting...\n')
 
   // ---------------------------------------------------------
   // SUPABASE CONNECTION CHECK
@@ -22,50 +20,39 @@ async function main() {
     .limit(1)
 
   if (error) {
-    console.error(
-      '❌ Supabase connection failed:',
-    )
-
+    console.error('❌ Supabase connection failed:')
     console.error(error.message)
-
     process.exit(1)
   }
 
-  console.log(
-    '✅ Supabase connection successful!',
-  )
+  console.log('✅ Supabase connection successful!')
 
   // ---------------------------------------------------------
-  // START RUN
+  // START JOB RUN
   // ---------------------------------------------------------
 
-  const runId =
-    await startJobRun()
+  const runId = await startJobRun()
 
-  console.log(
-    `\n🆔 Job Run: ${runId}`,
-  )
+  console.log(`\n🆔 Job Run: ${runId}`)
 
   try {
     // -------------------------------------------------------
     // RUN JOB HUNTER
     // -------------------------------------------------------
 
-    const summary =
-      await runJobPipeline()
+    const summary = await runJobPipeline()
 
     // -------------------------------------------------------
     // SAVE RUN HISTORY
     // -------------------------------------------------------
 
-    await finishJobRun(
-      runId,
-      summary,
-    )
+    await finishJobRun(runId, summary)
 
-    console.log(
-      '\n🚀 JOB HUNTER FINISHED',
-    )
+    // -------------------------------------------------------
+    // FINAL SUMMARY
+    // -------------------------------------------------------
+
+    console.log('\n🚀 JOB HUNTER FINISHED')
 
     console.log(
       JSON.stringify(
@@ -79,6 +66,10 @@ async function main() {
       error instanceof Error
         ? error.message
         : String(error)
+
+    // -------------------------------------------------------
+    // SAVE FAILURE
+    // -------------------------------------------------------
 
     await failJobRun(
       runId,
@@ -94,6 +85,10 @@ async function main() {
     process.exit(1)
   }
 }
+
+// -----------------------------------------------------------
+// GLOBAL ERROR HANDLER
+// -----------------------------------------------------------
 
 main().catch((error) => {
   console.error(
